@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Groupware",
+  title: "Collab",
   description: "팀 협업을 위한 그룹웨어 채팅 서비스",
 };
 

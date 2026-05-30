@@ -1,0 +1,71 @@
+.chatArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--bg-base);
+  overflow: hidden;
+}
+
+.header {
+  height: 64px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.channelTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hash {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.channelName {
+  color: var(--text-base);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.actionBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.actionBtn:hover {
+  color: var(--accent-light);
+  background-color: var(--bg-hover);
+}
+
+.actionBtnGreen:hover {
+  color: var(--online);
+  background-color: var(--bg-hover);
+}
+
+.divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border);
+  margin: 0 4px;
+}
