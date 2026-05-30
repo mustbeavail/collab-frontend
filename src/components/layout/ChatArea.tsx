@@ -1,58 +1,124 @@
-import MessageList from '@/components/chat/MessageList';
-import MessageInput from '@/components/chat/MessageInput';
-import styles from './ChatArea.module.css';
+'use client';
 
-export default function ChatArea() {
-  const channelName = 'general';
+import { useRef, useState } from 'react';
+import ChatWindow from '@/components/windows/ChatWindow';
+import styles from './ChatArea.module.css';
+import type { ChatWindowState } from '@/app/page';
+
+interface Props {
+  windows: ChatWindowState[];
+  onClose: (windowId: string) => void;
+  onCloseAll: () => void;
+  onToggleMinimize: (windowId: string) => void;
+  onUpdate: (windowId: string, updates: Partial<ChatWindowState>) => void;
+  onBringToFront: (windowId: string) => void;
+}
+
+export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimize, onUpdate, onBringToFront }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const toggleSearch = () => {
+    setSearchOpen(prev => {
+      if (!prev) setTimeout(() => inputRef.current?.focus(), 50);
+      return !prev;
+    });
+  };
+
+  const normal    = windows.filter(w => !w.minimized);
+  const minimized = windows.filter(w =>  w.minimized);
 
   return (
-    <div className={styles.chatArea}>
+    <div className={styles.workspace}>
+      {/* 배경 헤더 */}
       <div className={styles.header}>
-        <div className={styles.channelTitle}>
-          <span className={styles.hash}>#</span>
-          <span className={styles.channelName}>{channelName}</span>
+        <div className={styles.headerLeft}>
+          <span className={styles.headerTitle}>워크스페이스</span>
+          {windows.length > 0 && (
+            <span className={styles.windowCount}>{windows.length}</span>
+          )}
         </div>
-        <div className={styles.actions}>
-          <button className={styles.actionBtn} title="검색">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className={styles.headerActions}>
+          {/* 검색 인풋 */}
+          <div className={`${styles.searchBox} ${searchOpen ? styles.searchBoxOpen : ''}`}>
+            <input
+              ref={inputRef}
+              className={styles.searchInput}
+              placeholder="채팅방 검색..."
+              onKeyDown={e => e.key === 'Escape' && setSearchOpen(false)}
+            />
+          </div>
+          <button
+            className={`${styles.headerBtn} ${searchOpen ? styles.headerBtnActive : ''}`}
+            onClick={toggleSearch}
+            title="검색"
+          >
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
-          <button className={styles.actionBtn} title="일정">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <button
+            className={`${styles.headerBtn} ${styles.closeAllBtn} ${windows.length === 0 ? styles.closeAllBtnDisabled : ''}`}
+            onClick={windows.length > 0 ? onCloseAll : undefined}
+            title="모두 닫기"
+            disabled={windows.length === 0}
+          >
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
-          <button className={styles.actionBtn} title="파일">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-          </button>
-          <button className={styles.actionBtn} title="회의록">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </button>
-          <button className={styles.actionBtn} title="그림판">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          </button>
-          <div className={styles.divider} />
-          <button className={`${styles.actionBtn} ${styles.actionBtnGreen}`} title="음성채팅">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          </button>
-          <button className={`${styles.actionBtn} ${styles.actionBtnGreen}`} title="화상채팅">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
+            <span>모두 닫기</span>
           </button>
         </div>
       </div>
-      <MessageList />
-      <MessageInput channelName={channelName} />
+
+      {/* 윈도우 캔버스 */}
+      <div ref={containerRef} className={styles.canvas}>
+        {windows.length === 0 && (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}>
+              <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <p className={styles.emptyTitle}>채팅방을 선택하세요</p>
+            <p className={styles.emptyDesc}>왼쪽 메뉴에서 채널이나 친구를 선택해 대화를 시작하세요.</p>
+          </div>
+        )}
+
+        {normal.map(win => (
+          <ChatWindow
+            key={win.windowId}
+            win={win}
+            containerRef={containerRef}
+            onClose={() => onClose(win.windowId)}
+            onMinimize={() => onToggleMinimize(win.windowId)}
+            onUpdate={updates => onUpdate(win.windowId, updates)}
+            onBringToFront={() => onBringToFront(win.windowId)}
+          />
+        ))}
+
+        {minimized.length > 0 && (
+          <div className={styles.minimizedStrip}>
+            {minimized.map(win => (
+              <div key={win.windowId} className={styles.minimizedBar}>
+                <button className={styles.minBarRestore} onClick={() => onToggleMinimize(win.windowId)} title="복원">
+                  <span className={styles.minBarPrefix}>{win.chat.type === 'channel' ? '#' : '@'}</span>
+                  <span className={styles.minBarName}>{win.chat.name}</span>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.minBarIcon}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+                <button className={styles.minBarClose} onClick={() => onClose(win.windowId)} title="닫기">
+                  <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

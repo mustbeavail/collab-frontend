@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import styles from './MessageInput.module.css';
 
-export default function MessageInput({ channelName }: { channelName: string }) {
+export default function MessageInput({ channelName, isDm = false }: { channelName: string; isDm?: boolean }) {
   const [value, setValue] = useState('');
 
   return (
@@ -18,7 +18,7 @@ export default function MessageInput({ channelName }: { channelName: string }) {
           className={styles.textarea}
           value={value}
           onChange={e => setValue(e.target.value)}
-          placeholder={`#${channelName}에 메시지 보내기`}
+          placeholder={`${isDm ? '@' : '#'}${channelName}에 메시지 보내기`}
           rows={1}
           onInput={e => {
             const el = e.currentTarget;

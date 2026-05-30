@@ -3,20 +3,62 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
+import { teams, friends } from '@/data/mockData';
+import type { Friend } from '@/data/mockData';
+import type { ChatInfo } from '@/app/page';
 
-const teams = [
-  { id: 1, name: 'Team Alpha', initial: 'A' },
-  { id: 2, name: 'Team Beta', initial: 'B' },
-];
+type MenuFriend = { friend: Friend; x: number; y: number };
 
-const friends = [
-  { id: 1, name: '홍길동', online: true },
-  { id: 2, name: '김영희', online: false },
-  { id: 3, name: '이철수', online: true },
-];
+interface Props {
+  openChatIds: string[];
+  shakingChatId: string | null;
+  onChatOpen: (chat: ChatInfo) => void;
+}
 
-export default function Sidebar() {
-  const [selectedTeam, setSelectedTeam] = useState(1);
+export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
+  const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set([1]));
+  const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set(['1-channels']));
+  const [menuFriend,        setMenuFriend]        = useState<MenuFriend | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = (key: string) =>
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  const toggleTeam = (id: number) => {
+    setSelectedTeams(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); }
+      else {
+        next.add(id);
+        setOpenCategories(cats => new Set([...cats, `${id}-channels`]));
+      }
+      return next;
+    });
+  };
+
+  const toggleCategory = (key: string) => {
+    setOpenCategories(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const handleChatOpen = (chat: ChatInfo) => onChatOpen(chat);
+
+  const openFriendDm = (f: Friend) => {
+    setMenuFriend(null);
+    handleChatOpen({ id: `dm-${f.id}`, name: f.name, type: 'dm' });
+  };
+
+  const openContextMenu = (f: Friend, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMenuFriend({ friend: f, x: rect.right + 8, y: rect.top });
+  };
 
   return (
     <aside className={styles.sidebar}>
@@ -26,31 +68,125 @@ export default function Sidebar() {
           <div className={styles.logoIcon}>C</div>
           <span className={styles.logoText}>Collab</span>
         </div>
-        <button className={styles.iconBtn}>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
       </div>
 
-      {/* 스크롤 영역 */}
       <div className={styles.scrollArea}>
-        {/* 팀 */}
+        {/* ─── 팀 ─── */}
         <div>
-          <p className={styles.sectionLabel}>팀</p>
-          <div className={styles.itemList}>
+          <button className={styles.sectionHeader} onClick={() => toggleSection('teams')}>
+            <span className={styles.sectionLabel}>팀</span>
+            <svg className={`${styles.sectionChevron} ${collapsedSections.has('teams') ? '' : styles.sectionChevronOpen}`}
+              width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsedSections.has('teams') && <div className={styles.itemList}>
             {teams.map(team => (
-              <button
-                key={team.id}
-                onClick={() => setSelectedTeam(team.id)}
-                className={`${styles.teamBtn} ${selectedTeam === team.id ? styles.teamBtnActive : ''}`}
-              >
-                <div className={`${styles.teamAvatar} ${selectedTeam === team.id ? styles.teamAvatarActive : ''}`}>
-                  {team.initial}
-                </div>
-                <span className={styles.teamName}>{team.name}</span>
-              </button>
+              <div key={team.id}>
+                <button
+                  onClick={() => toggleTeam(team.id)}
+                  className={`${styles.teamBtn} ${selectedTeams.has(team.id) ? styles.teamBtnActive : ''}`}
+                >
+                  <div className={`${styles.teamAvatar} ${selectedTeams.has(team.id) ? styles.teamAvatarActive : ''}`}>
+                    {team.initial}
+                  </div>
+                  <span className={styles.teamName}>{team.name}</span>
+                  <svg
+                    className={`${styles.teamChevron} ${selectedTeams.has(team.id) ? styles.teamChevronOpen : ''}`}
+                    width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+
+                {selectedTeams.has(team.id) && (
+                  <div className={styles.teamBody}>
+
+                    {/* 채팅방 카테고리 */}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-channels`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-channels`) ? styles.catChevronOpen : ''}`}
+                        width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                      채팅방
+                      <span className={styles.categoryCount}>{team.channels.length}</span>
+                    </button>
+                    {openCategories.has(`${team.id}-channels`) && (
+                      <div className={styles.categoryItems}>
+                        {team.channels.map(ch => {
+                          const id = `channel-${team.id}-${ch}`;
+                          const isOpen    = openChatIds.includes(id);
+                          const isShaking = shakingChatId === id;
+                          return (
+                            <button
+                              key={ch}
+                              className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
+                              onClick={() => handleChatOpen({ id, name: ch, type: 'channel' })}
+                            >
+                              <span className={styles.channelHash}>#</span>
+                              <span>{ch}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 멤버 카테고리 */}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-members`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-members`) ? styles.catChevronOpen : ''}`}
+                        width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                      멤버
+                      <span className={styles.categoryCount}>{team.members.length}</span>
+                    </button>
+                    {openCategories.has(`${team.id}-members`) && (
+                      <div className={styles.categoryItems}>
+                        {team.members.map(m => (
+                          <div key={m.id} className={styles.memberItem}>
+                            <div className={styles.memberAvatarWrap}>
+                              <div className={styles.memberAvatar}>{m.name[0]}</div>
+                              <div className={`${styles.memberDot} ${m.online ? styles.online : styles.offline}`} />
+                            </div>
+                            <div className={styles.memberInfo}>
+                              <span className={styles.memberName}>{m.name}</span>
+                              {m.role && <span className={styles.memberRole}>{m.role}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 일정 카테고리 */}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-schedule`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-schedule`) ? styles.catChevronOpen : ''}`}
+                        width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                      일정
+                      <span className={styles.categoryCount}>{team.schedule.length}</span>
+                    </button>
+                    {openCategories.has(`${team.id}-schedule`) && (
+                      <div className={styles.categoryItems}>
+                        {team.schedule.map(s => (
+                          <div key={s.id} className={styles.scheduleItem}>
+                            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.scheduleIcon}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <div className={styles.scheduleText}>
+                              <span className={styles.scheduleTitle}>{s.title}</span>
+                              <span className={styles.scheduleDate}>{s.date}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                  </div>
+                )}
+              </div>
             ))}
+
             <button className={styles.addBtn}>
               <div className={styles.addIcon}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,31 +195,84 @@ export default function Sidebar() {
               </div>
               <span className={styles.addText}>팀 만들기</span>
             </button>
-          </div>
+          </div>}
+          <div className={styles.sectionDivider} />
         </div>
 
-        {/* 친구 */}
+        {/* ─── 채팅방 ─── */}
         <div>
-          <p className={styles.sectionLabel}>친구</p>
-          <div className={styles.itemList}>
-            {friends.map(f => (
-              <div key={f.id} className={styles.friendItem}>
-                <div className={styles.avatarWrap}>
-                  <div className={styles.friendAvatar}>{f.name[0]}</div>
-                  <div className={`${styles.statusDot} ${f.online ? styles.online : styles.offline}`} />
+          <button className={styles.sectionHeader} onClick={() => toggleSection('channels')}>
+            <span className={styles.sectionLabel}>채팅방</span>
+            <svg className={`${styles.sectionChevron} ${collapsedSections.has('channels') ? '' : styles.sectionChevronOpen}`}
+              width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsedSections.has('channels') && (
+            <div className={styles.itemList}>
+              {teams.flatMap(team =>
+                team.channels.map(ch => {
+                  const id = `channel-${team.id}-${ch}`;
+                  const isOpen    = openChatIds.includes(id);
+                  const isShaking = shakingChatId === id;
+                  return (
+                    <button
+                      key={id}
+                      className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
+                      onClick={() => handleChatOpen({ id, name: ch, type: 'channel' })}
+                    >
+                      <span className={styles.channelHash}>#</span>
+                      <span>{ch}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+          <div className={styles.sectionDivider} />
+        </div>
+
+        {/* ─── 친구 ─── */}
+        <div>
+          <button className={styles.sectionHeader} onClick={() => toggleSection('friends')}>
+            <span className={styles.sectionLabel}>친구</span>
+            <svg className={`${styles.sectionChevron} ${collapsedSections.has('friends') ? '' : styles.sectionChevronOpen}`}
+              width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsedSections.has('friends') && (
+            <div className={styles.itemList}>
+              {friends.map(f => {
+                const isShaking = shakingChatId === `dm-${f.id}`;
+                return (
+                  <button
+                    key={f.id}
+                    className={[styles.friendItem, isShaking ? styles.shaking : ''].join(' ')}
+                    onClick={e => openContextMenu(f, e)}
+                  >
+                    <div className={styles.avatarWrap}>
+                      <div className={styles.friendAvatar}>{f.name[0]}</div>
+                      <div className={`${styles.statusDot} ${f.online ? styles.online : styles.offline}`} />
+                    </div>
+                    <span className={styles.friendName}>{f.name}</span>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.friendMenuIcon}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                  </button>
+                );
+              })}
+              <button className={styles.addBtn}>
+                <div className={styles.addIcon}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                  </svg>
                 </div>
-                <span className={styles.friendName}>{f.name}</span>
-              </div>
-            ))}
-            <button className={styles.addBtn}>
-              <div className={styles.addIcon}>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                </svg>
-              </div>
-              <span className={styles.addText}>친구 추가</span>
-            </button>
-          </div>
+                <span className={styles.addText}>친구 추가</span>
+              </button>
+            </div>
+          )}
+          <div className={styles.sectionDivider} />
         </div>
       </div>
 
@@ -106,6 +295,40 @@ export default function Sidebar() {
           </Link>
         </div>
       </div>
+
+      {/* 친구 컨텍스트 메뉴 */}
+      {menuFriend && (
+        <>
+          <div className={styles.menuBackdrop} onClick={() => setMenuFriend(null)} />
+          <div className={styles.contextMenu} style={{ top: menuFriend.y, left: menuFriend.x }}>
+            <button className={styles.menuItem}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              친구 정보 보기
+            </button>
+            <button className={styles.menuItem} onClick={() => openFriendDm(menuFriend.friend)}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              DM 채팅 열기
+            </button>
+            <button className={styles.menuItem}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              팀으로 초대
+            </button>
+            <div className={styles.menuDivider} />
+            <button className={`${styles.menuItem} ${styles.menuItemDanger}`}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+              </svg>
+              친구 삭제
+            </button>
+          </div>
+        </>
+      )}
     </aside>
   );
 }
