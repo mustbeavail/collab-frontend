@@ -3,7 +3,15 @@
 import { useState } from 'react';
 import styles from './MessageInput.module.css';
 
-export default function MessageInput({ channelName, isDm = false }: { channelName: string; isDm?: boolean }) {
+interface Props {
+  channelName: string;
+  isDm?: boolean;
+  showMicToggle?: boolean;
+  micMuted?: boolean;
+  onMicToggle?: () => void;
+}
+
+export default function MessageInput({ channelName, isDm = false, showMicToggle = false, micMuted = false, onMicToggle }: Props) {
   const [value, setValue] = useState('');
 
   return (
@@ -27,6 +35,24 @@ export default function MessageInput({ channelName, isDm = false }: { channelNam
           }}
         />
         <div className={styles.rightActions}>
+          {showMicToggle && (
+            <button
+              className={`${styles.micToggleBtn} ${micMuted ? styles.micToggleMuted : styles.micToggleActive}`}
+              onClick={onMicToggle}
+              title={micMuted ? '마이크 켜기' : '마이크 끄기'}
+            >
+              {micMuted ? (
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3" />
+                  <path strokeLinecap="round" strokeWidth={2} d="M3 3l18 18" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              )}
+            </button>
+          )}
           <button className={styles.iconBtn}>
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

@@ -76,3 +76,27 @@
   background-color: var(--bg-hover);
   color: var(--text-muted);
 }
+
+/* 마이크 토글 버튼 */
+.micToggleBtn {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer; flex-shrink: 0;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.micToggleActive {
+  background-color: rgba(34, 197, 94, 0.18);
+  color: var(--online);
+}
+.micToggleActive:hover {
+  background-color: rgba(34, 197, 94, 0.28);
+}
+
+.micToggleMuted {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+.micToggleMuted:hover {
+  background-color: rgba(239, 68, 68, 0.25);
+}

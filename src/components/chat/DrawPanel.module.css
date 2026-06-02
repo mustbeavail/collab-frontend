@@ -1,0 +1,29 @@
+.panel {
+  width: 520px; height: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 14px 10px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.title { font-size: 0.78rem; font-weight: 600; color: var(--text-sub); }
+.closeBtn {
+  width: 22px; height: 22px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  transition: color 0.15s, background-color 0.15s;
+}
+.closeBtn:hover { color: var(--danger); background: rgba(239,68,68,0.12); }
+
+.canvasArea {
+  flex: 1; min-height: 0; overflow: hidden;
+}
+
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; font-size: 0.78rem; color: var(--text-muted);
+  background: #ffffff;
+}

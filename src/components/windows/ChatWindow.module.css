@@ -71,6 +71,14 @@
 }
 .minimizeBtn:hover { color: var(--accent-light); background-color: var(--bg-hover); }
 
+.maximizeBtn {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); background: none; border: none; cursor: pointer;
+  transition: color 0.15s, background-color 0.15s; flex-shrink: 0;
+}
+.maximizeBtn:hover { color: var(--accent-light); background-color: var(--bg-hover); }
+
 .closeBtn {
   width: 24px; height: 24px; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
@@ -151,6 +159,275 @@
 .memberPanelInfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .memberPanelName { font-size: 0.8rem; color: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .memberPanelRole { font-size: 0.68rem; color: var(--text-muted); }
+
+/* 우측 패널 슬라이드 (일정·파일·회의록 공용) */
+.rightPanel {
+  width: 0; flex-shrink: 0; overflow: hidden;
+  border-left: 0px solid var(--border);
+  transition: width 0.22s cubic-bezier(0.16,1,0.3,1), border-left-width 0.22s;
+  background-color: var(--bg-base);
+}
+.rightPanelOpen {
+  width: 360px;
+  border-left-width: 1px;
+}
+.rightPanelOpenDraw {
+  width: 520px;
+  border-left-width: 1px;
+}
+
+/* 검색 바 */
+.searchBar {
+  display: flex; align-items: center; gap: 6px;
+  flex: 0 0 auto; max-width: 0; overflow: hidden; opacity: 0;
+  transition: max-width 0.22s cubic-bezier(0.16,1,0.3,1), opacity 0.18s;
+  pointer-events: none;
+}
+.searchBarOpen {
+  max-width: 280px; opacity: 1; pointer-events: auto; flex-shrink: 0;
+}
+
+.scopeSelect {
+  background: var(--bg-hover); color: var(--text-sub);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 3px 8px; font-size: 0.72rem; font-family: inherit;
+  cursor: pointer; outline: none; flex-shrink: 0;
+  height: 26px; color-scheme: dark;
+}
+.scopeSelect:focus { border-color: var(--accent-light); }
+
+.searchInputWrap {
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 7px; padding: 0 10px; height: 26px; min-width: 0;
+  transition: border-color 0.15s;
+}
+.searchInputWrap:focus-within { border-color: var(--accent-light); }
+
+.searchIcon { color: var(--text-muted); flex-shrink: 0; }
+
+.searchInput {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text-base); font-size: 0.8rem; font-family: inherit; min-width: 0;
+}
+.searchInput::placeholder { color: var(--text-muted); }
+
+.searchCloseBtn {
+  width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  transition: color 0.15s, background-color 0.15s;
+}
+.searchCloseBtn:hover { color: var(--danger); background: rgba(239,68,68,0.12); }
+
+/* 버튼 활성 상태 */
+.actionBtnSearchActive {
+  color: var(--accent-light) !important;
+  background-color: rgba(99, 102, 241, 0.15) !important;
+}
+.actionBtnDrawActive {
+  color: #86efac !important;
+  background-color: rgba(134, 239, 172, 0.15) !important;
+}
+.actionBtnFileActive {
+  color: #fb923c !important;
+  background-color: rgba(251, 146, 60, 0.15) !important;
+}
+.actionBtnMinutesActive {
+  color: #2dd4bf !important;
+  background-color: rgba(45, 212, 191, 0.15) !important;
+}
+.actionBtnScheduleActive {
+  color: #a78bfa !important;
+  background-color: rgba(167, 139, 250, 0.15) !important;
+}
+
+/* 음성/화상 버튼 활성 상태 */
+.actionBtnVoiceActive {
+  color: var(--online) !important;
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+.actionBtnVideoActive {
+  color: #60a5fa !important;
+  background-color: rgba(96, 165, 250, 0.15) !important;
+}
+
+/* 라이브 점 애니메이션 */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.75); }
+}
+
+.liveDot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--online); flex-shrink: 0;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+.liveDotBlue { background: #60a5fa; }
+
+/* 종료 버튼 (음성/화상 공용) */
+.endCallBtn {
+  padding: 3px 10px; border-radius: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  cursor: pointer; font-size: 0.7rem; font-weight: 600;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.endCallBtn:hover { background: rgba(239, 68, 68, 0.22); }
+
+/* ── 음성 채팅 패널 ── */
+.voicePanel {
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 14px 10px;
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 140px;
+}
+
+.voicePanelHeader {
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.voicePanelTitle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.73rem; font-weight: 600; color: var(--text-sub);
+}
+
+.voiceParticipants {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  overflow-y: auto; max-height: 90px;
+}
+
+.voiceParticipant {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px 4px 5px;
+  border-radius: 20px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+}
+
+.voiceAvatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bg-hover);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: var(--text-sub);
+  flex-shrink: 0;
+  transition: box-shadow 0.2s;
+}
+.voiceAvatarSpeaking {
+  box-shadow: 0 0 0 2px var(--online), 0 0 7px rgba(34, 197, 94, 0.45);
+}
+
+.voiceName {
+  font-size: 0.73rem; color: var(--text-sub); white-space: nowrap;
+}
+
+.voiceMicIcon {
+  display: flex; align-items: center; flex-shrink: 0;
+}
+.micOnColor  { color: var(--text-muted); }
+.micOffColor { color: #ef4444; }
+
+/* ── 화상 채팅 패널 ── */
+.videoPanel {
+  flex-shrink: 0;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  height: 380px;
+}
+
+.videoPanelHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.videoPanelTitle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.73rem; font-weight: 600; color: var(--text-sub);
+}
+
+.videoGrid {
+  flex: 1;
+  display: flex; flex-wrap: wrap;
+  justify-content: center; align-content: flex-start;
+  gap: 10px; padding: 14px;
+  overflow-y: auto;
+}
+
+.videoCell {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+}
+
+.videoCam {
+  width: 300px; height: 225px; border-radius: 10px;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.videoCamInitial {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--bg-surface);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 600; color: var(--text-sub);
+}
+
+.videoName {
+  font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;
+}
+
+/* ── 확인 모달 ── */
+.modalOverlay {
+  position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+  border-radius: 16px;
+}
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  min-width: 230px;
+  display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+
+.modalText {
+  color: var(--text-base);
+  font-size: 0.88rem; font-weight: 500;
+  text-align: center; margin: 0;
+}
+
+.modalBtns {
+  display: flex; gap: 8px; justify-content: center;
+}
+
+.modalBtnYes {
+  padding: 7px 22px; border-radius: 8px;
+  background: var(--accent); color: white;
+  border: none; cursor: pointer;
+  font-size: 0.85rem; font-weight: 600; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.modalBtnYes:hover { opacity: 0.85; }
+
+.modalBtnNo {
+  padding: 7px 22px; border-radius: 8px;
+  background: var(--bg-hover); color: var(--text-sub);
+  border: 1px solid var(--border); cursor: pointer;
+  font-size: 0.85rem; font-weight: 500; font-family: inherit;
+  transition: background 0.15s;
+}
+.modalBtnNo:hover { background: var(--bg-surface); }
 
 /* 리사이즈 핸들 */
 .resizeHandle {
