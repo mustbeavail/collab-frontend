@@ -55,11 +55,40 @@
 
 .itemList { display: flex; flex-direction: column; gap: 2px; }
 
+/* 팀 행 래퍼 */
+.teamRow {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+}
+.teamRow:hover .dotBtn { opacity: 1; }
+
+/* 채널 행 래퍼 */
+.channelRow {
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+}
+.channelRow:hover .dotBtn { opacity: 1; }
+
+/* 세로 점세개 버튼 */
+.dotBtn {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  margin-right: 4px;
+}
+.dotBtn:hover { background-color: var(--bg-hover); color: var(--text-base); opacity: 1; }
+
 /* 팀 버튼 */
 .teamBtn {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 10px; border-radius: 12px; cursor: pointer;
-  background: none; border: none; width: 100%; text-align: left;
+  background: none; border: none; flex: 1; min-width: 0; text-align: left;
   color: var(--text-sub); transition: background-color 0.15s, color 0.15s;
   font-family: inherit;
 }
@@ -115,7 +144,7 @@
 .channelItem {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 10px 5px 28px; border-radius: 7px;
-  cursor: pointer; background: none; border: none; width: 100%;
+  cursor: pointer; background: none; border: none; flex: 1; min-width: 0;
   text-align: left; font-family: inherit; font-size: 0.95rem;
   color: var(--text-muted); transition: background-color 0.15s, color 0.15s;
 }
@@ -273,6 +302,16 @@
   border-radius: 12px; padding: 6px; min-width: 180px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
 }
+.menuTitle {
+  padding: 6px 12px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .menuItem {
   display: flex; align-items: center; gap: 9px;
   padding: 8px 12px; border-radius: 8px;

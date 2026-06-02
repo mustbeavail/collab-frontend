@@ -33,4 +33,7 @@ html, body {
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb { background: #4b4b6b; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #6b6b8b; }
+
+* { scrollbar-width: thin; scrollbar-color: #4b4b6b transparent; }

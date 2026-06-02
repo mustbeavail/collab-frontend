@@ -77,6 +77,77 @@
   color: var(--text-muted);
 }
 
+/* 파일 첨부 드롭다운 */
+.attachWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.iconBtnActive {
+  color: var(--accent-light);
+}
+
+.attachMenu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 230px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.attachOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: none;
+  border: none;
+  color: var(--text-base);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.attachDivider {
+  height: 1px;
+  background-color: var(--border);
+  margin: 4px 10px;
+}
+
+.attachOptionText {
+  flex: 1;
+  text-align: center;
+}
+
+.attachOption svg {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.attachOption:hover {
+  background-color: var(--bg-hover);
+  color: var(--accent-light);
+}
+
+.attachOptionDesc {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
 /* 마이크 토글 버튼 */
 .micToggleBtn {
   width: 36px; height: 36px; border-radius: 10px;
