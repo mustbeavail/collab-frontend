@@ -85,8 +85,4 @@
   flex: 1; min-height: 0;
   position: relative; overflow: hidden;
 }
-.canvasWrap > canvas,
-.canvasWrap :global(.canvas-container) {
-  width: 100% !important;
-  height: 100% !important;
-}
+/* Konva 스테이지가 명시적 width/height를 받으므로 CSS 오버라이드 불필요 */

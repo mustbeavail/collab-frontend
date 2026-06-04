@@ -6,6 +6,7 @@ import styles from './Sidebar.module.css';
 import { teams, friends } from '@/data/mockData';
 import type { Friend } from '@/data/mockData';
 import type { ChatInfo } from '@/app/page';
+import { useAuthStore } from '@/store/authStore';
 
 type MenuFriend  = { friend: Friend; x: number; y: number };
 type MenuTeam    = { teamId: number; name: string; x: number; y: number };
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
+  const user = useAuthStore((s) => s.user);
   const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set([1]));
   const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set(['1-channels']));
   const [menuFriend,        setMenuFriend]        = useState<MenuFriend | null>(null);
@@ -335,12 +337,12 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       <div className={styles.footer}>
         <div className={styles.userCard}>
           <div className={styles.myAvatarWrap}>
-            <div className={styles.myAvatar}>나</div>
+            <div className={styles.myAvatar}>{user?.nickname?.[0] ?? '?'}</div>
             <div className={styles.myOnlineDot} />
           </div>
           <div className={styles.userInfo}>
-            <p className={styles.userName}>내 이름</p>
-            <p className={styles.userStatus}>온라인</p>
+            <p className={styles.userName}>{user?.nickname ?? '알 수 없음'}</p>
+            <p className={styles.userStatus}>{user?.email ?? ''}</p>
           </div>
           <Link href="/profile" className={styles.settingsLink}>
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">

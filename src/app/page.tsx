@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import ChatArea from '@/components/layout/ChatArea';
+import AuthGuard from '@/components/auth/AuthGuard';
 import styles from './page.module.css';
 
 export type ChatInfo = {
@@ -96,20 +97,22 @@ export default function Home() {
   const closeAll = useCallback(() => setWindows([]), []);
 
   return (
-    <div className={styles.layout}>
-      <Sidebar
-        openChatIds={windows.map(w => w.chat.id)}
-        shakingChatId={shakingId}
-        onChatOpen={openChat}
-      />
-      <ChatArea
-        windows={windows}
-        onClose={closeWindow}
-        onCloseAll={closeAll}
-        onToggleMinimize={toggleMinimize}
-        onUpdate={updateWindow}
-        onBringToFront={bringToFront}
-      />
-    </div>
+    <AuthGuard>
+      <div className={styles.layout}>
+        <Sidebar
+          openChatIds={windows.map(w => w.chat.id)}
+          shakingChatId={shakingId}
+          onChatOpen={openChat}
+        />
+        <ChatArea
+          windows={windows}
+          onClose={closeWindow}
+          onCloseAll={closeAll}
+          onToggleMinimize={toggleMinimize}
+          onUpdate={updateWindow}
+          onBringToFront={bringToFront}
+        />
+      </div>
+    </AuthGuard>
   );
 }

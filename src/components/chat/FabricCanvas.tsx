@@ -1,27 +1,67 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Stage, Layer, Line, Rect, Ellipse } from 'react-konva';
 import styles from './FabricCanvas.module.css';
 
 type Tool = 'pencil' | 'eraser' | 'line' | 'rect' | 'ellipse';
 
-const BG = '#ffffff';
+type PencilEl  = { id: string; type: 'pencil' | 'eraser'; points: number[]; color: string; size: number };
+type LineEl    = { id: string; type: 'line';    points: number[]; color: string; size: number };
+type RectEl    = { id: string; type: 'rect';    x: number; y: number; w: number; h: number; color: string; size: number };
+type EllipseEl = { id: string; type: 'ellipse'; cx: number; cy: number; rx: number; ry: number; color: string; size: number };
+type DrawEl    = PencilEl | LineEl | RectEl | EllipseEl;
+
 const PALETTE = ['#000000', '#1d4ed8', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#7c3aed', '#db2777', '#64748b'];
 
+let _id = 0;
+const uid = () => String(++_id);
+
+function renderEl(el: DrawEl) {
+  switch (el.type) {
+    case 'pencil':
+      return <Line key={el.id} points={el.points} stroke={el.color} strokeWidth={el.size} lineCap="round" lineJoin="round" tension={0.5} listening={false} />;
+    case 'eraser':
+      return (
+        <Line
+          key={el.id}
+          points={el.points}
+          stroke="rgba(0,0,0,1)"
+          strokeWidth={el.size}
+          lineCap="round"
+          lineJoin="round"
+          // @ts-ignore — Konva에서 지원하는 속성
+          globalCompositeOperation="destination-out"
+          listening={false}
+        />
+      );
+    case 'line':
+      return <Line key={el.id} points={el.points} stroke={el.color} strokeWidth={el.size} lineCap="round" listening={false} />;
+    case 'rect':
+      return <Rect key={el.id} x={el.x} y={el.y} width={el.w} height={el.h} stroke={el.color} strokeWidth={el.size} fill="transparent" listening={false} />;
+    case 'ellipse':
+      return <Ellipse key={el.id} x={el.cx} y={el.cy} radiusX={Math.max(el.rx, 0)} radiusY={Math.max(el.ry, 0)} stroke={el.color} strokeWidth={el.size} fill="transparent" listening={false} />;
+  }
+}
+
 export default function FabricCanvas() {
-  const canvasElRef  = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const fbRef        = useRef<any>(null);
-  const historyRef   = useRef<object[]>([]);
-  const shapeRef     = useRef<any>(null);
-  const drawingRef   = useRef(false);
-  const startRef     = useRef({ x: 0, y: 0 });
+  const stageRef     = useRef<any>(null);
+  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
 
   const [tool,  setTool]  = useState<Tool>('pencil');
   const [size,  setSize]  = useState(4);
   const [color, setColor] = useState('#000000');
 
-  // 이벤트 핸들러가 항상 최신 값을 참조하도록 ref 유지
+  const [elements,     setElements]     = useState<DrawEl[]>([]);
+  const [currentState, setCurrentState] = useState<DrawEl | null>(null);
+
+  const historyRef  = useRef<DrawEl[][]>([[]]);
+  const currentRef  = useRef<DrawEl | null>(null);
+  const isDrawing   = useRef(false);
+  const startPos    = useRef({ x: 0, y: 0 });
+
+  // 이벤트 핸들러가 항상 최신 값을 읽도록 ref 유지
   const toolRef  = useRef(tool);
   const sizeRef  = useRef(size);
   const colorRef = useRef(color);
@@ -29,180 +69,121 @@ export default function FabricCanvas() {
   useEffect(() => { sizeRef.current  = size;  }, [size]);
   useEffect(() => { colorRef.current = color; }, [color]);
 
-  const saveHistory = useCallback(() => {
-    const fb = fbRef.current;
-    if (!fb) return;
-    historyRef.current.push(fb.toJSON());
-    if (historyRef.current.length > 50) historyRef.current.shift();
+  // 렌더링용 state + 이벤트 핸들러용 ref 동기화
+  const setCurrent = useCallback((el: DrawEl | null) => {
+    currentRef.current = el;
+    setCurrentState(el);
   }, []);
 
-  /* ── 캔버스 초기화 + 도형 이벤트 등록 (한 번만) ── */
-  useEffect(() => {
-    if (!canvasElRef.current || !containerRef.current) return;
-    let alive = true;
-
-    (async () => {
-      const { Canvas, PencilBrush, Rect, Ellipse, Line } = await import('fabric');
-      if (!alive) return;
-
-      const w = containerRef.current!.clientWidth;
-      const h = containerRef.current!.clientHeight;
-
-      const fb = new Canvas(canvasElRef.current!, {
-        isDrawingMode: true,
-        backgroundColor: BG,
-        width: w, height: h,
-        selection: false,
-      });
-
-      const brush = new PencilBrush(fb);
-      brush.color = colorRef.current;
-      brush.width = sizeRef.current;
-      fb.freeDrawingBrush = brush;
-
-      fbRef.current = fb;
-      historyRef.current = [fb.toJSON()];
-
-      // 펜 자유곡선 완성 시 히스토리 저장
-      fb.on('path:created', saveHistory);
-
-      // ─── 도형 그리기 이벤트 (ref로 현재 값 참조) ───
-      fb.on('mouse:down', (opt: any) => {
-        const t = toolRef.current;
-        if (t === 'pencil' || t === 'eraser') return;
-
-        // Fabric v7: opt.pointer가 캔버스 좌표
-        const ptr = opt.pointer;
-        if (!ptr) return;
-
-        startRef.current = { x: ptr.x, y: ptr.y };
-        drawingRef.current = true;
-
-        const base = {
-          left: ptr.x, top: ptr.y,
-          stroke: colorRef.current,
-          strokeWidth: sizeRef.current,
-          fill: 'transparent',
-          selectable: false,
-          evented: false,
-          strokeUniform: true,
-        };
-
-        let s: any = null;
-        if (t === 'rect')    s = new Rect({ ...base, width: 0, height: 0 });
-        if (t === 'ellipse') s = new Ellipse({ ...base, rx: 0, ry: 0 });
-        if (t === 'line')    s = new Line([ptr.x, ptr.y, ptr.x, ptr.y], {
-          stroke: colorRef.current,
-          strokeWidth: sizeRef.current,
-          selectable: false,
-          evented: false,
-          strokeUniform: true,
-        });
-
-        if (s) { fb.add(s); shapeRef.current = s; }
-      });
-
-      fb.on('mouse:move', (opt: any) => {
-        if (!drawingRef.current || !shapeRef.current) return;
-        const ptr = opt.pointer;
-        if (!ptr) return;
-
-        const { x: sx, y: sy } = startRef.current;
-        const s = shapeRef.current;
-        const t = toolRef.current;
-
-        if (t === 'rect') {
-          s.set({
-            left:   Math.min(ptr.x, sx),
-            top:    Math.min(ptr.y, sy),
-            width:  Math.abs(ptr.x - sx),
-            height: Math.abs(ptr.y - sy),
-          });
-        } else if (t === 'ellipse') {
-          s.set({
-            left: Math.min(ptr.x, sx),
-            top:  Math.min(ptr.y, sy),
-            rx:   Math.abs(ptr.x - sx) / 2,
-            ry:   Math.abs(ptr.y - sy) / 2,
-          });
-        } else if (t === 'line') {
-          s.set({ x2: ptr.x, y2: ptr.y });
-        }
-
-        fb.requestRenderAll();
-      });
-
-      fb.on('mouse:up', () => {
-        if (!drawingRef.current) return;
-        drawingRef.current = false;
-        if (shapeRef.current) {
-          shapeRef.current.set({ selectable: false, evented: false });
-          shapeRef.current = null;
-          saveHistory();
-        }
-      });
-    })();
-
-    return () => {
-      alive = false;
-      fbRef.current?.dispose();
-      fbRef.current = null;
-    };
-  }, [saveHistory]);
-
-  /* ── 리사이즈 → 좌표 재보정 ── */
+  /* ── 컨테이너 크기 감지 ── */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      const fb = fbRef.current;
-      if (!fb) return;
-      fb.setDimensions({ width: el.clientWidth, height: el.clientHeight });
-      fb.requestRenderAll();
+      setStageSize({ w: el.clientWidth, h: el.clientHeight });
     });
     ro.observe(el);
+    setStageSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
 
-  /* ── 도구 / 크기 / 색상 변경 → 브러시 갱신 ── */
-  useEffect(() => {
-    const fb = fbRef.current;
-    if (!fb) return;
-    (async () => {
-      const { PencilBrush } = await import('fabric');
-      if (tool === 'pencil' || tool === 'eraser') {
-        fb.isDrawingMode = true;
-        const b = new PencilBrush(fb);
-        b.color = tool === 'eraser' ? BG : color;
-        b.width = size;
-        fb.freeDrawingBrush = b;
-      } else {
-        fb.isDrawingMode = false;
-      }
-    })();
-  }, [tool, size, color]);
+  const getPos = () => stageRef.current?.getPointerPosition() ?? null;
+
+  /* ── 마우스 이벤트 ── */
+  const handleMouseDown = useCallback(() => {
+    const pos = getPos();
+    if (!pos) return;
+
+    isDrawing.current = true;
+    startPos.current  = { x: pos.x, y: pos.y };
+
+    const t = toolRef.current;
+    const s = sizeRef.current;
+    const c = colorRef.current;
+
+    if (t === 'pencil' || t === 'eraser') {
+      setCurrent({ id: uid(), type: t, points: [pos.x, pos.y, pos.x, pos.y], color: c, size: s });
+    } else if (t === 'line') {
+      setCurrent({ id: uid(), type: 'line', points: [pos.x, pos.y, pos.x, pos.y], color: c, size: s });
+    } else if (t === 'rect') {
+      setCurrent({ id: uid(), type: 'rect', x: pos.x, y: pos.y, w: 0, h: 0, color: c, size: s });
+    } else if (t === 'ellipse') {
+      setCurrent({ id: uid(), type: 'ellipse', cx: pos.x, cy: pos.y, rx: 0, ry: 0, color: c, size: s });
+    }
+  }, [setCurrent]);
+
+  const handleMouseMove = useCallback(() => {
+    if (!isDrawing.current) return;
+    const pos = getPos();
+    if (!pos || !currentRef.current) return;
+
+    const el = currentRef.current;
+    const { x: sx, y: sy } = startPos.current;
+    let updated: DrawEl;
+
+    switch (el.type) {
+      case 'pencil':
+      case 'eraser':
+        updated = { ...el, points: [...el.points, pos.x, pos.y] };
+        break;
+      case 'line':
+        updated = { ...el, points: [sx, sy, pos.x, pos.y] };
+        break;
+      case 'rect':
+        updated = {
+          ...el,
+          x: Math.min(sx, pos.x),
+          y: Math.min(sy, pos.y),
+          w: Math.abs(pos.x - sx),
+          h: Math.abs(pos.y - sy),
+        };
+        break;
+      case 'ellipse':
+        updated = {
+          ...el,
+          cx: (sx + pos.x) / 2,
+          cy: (sy + pos.y) / 2,
+          rx: Math.abs(pos.x - sx) / 2,
+          ry: Math.abs(pos.y - sy) / 2,
+        };
+        break;
+      default:
+        return;
+    }
+
+    setCurrent(updated);
+  }, [setCurrent]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+
+    const el = currentRef.current;
+    if (el) {
+      setElements(prev => {
+        const next = [...prev, el];
+        historyRef.current.push(next);
+        if (historyRef.current.length > 50) historyRef.current.shift();
+        return next;
+      });
+    }
+    setCurrent(null);
+  }, [setCurrent]);
 
   /* ── 실행 취소 ── */
-  const undo = useCallback(async () => {
-    const fb = fbRef.current;
-    if (!fb || historyRef.current.length <= 1) return;
+  const undo = useCallback(() => {
+    if (historyRef.current.length <= 1) return;
     historyRef.current.pop();
-    const prev = historyRef.current[historyRef.current.length - 1];
-    await fb.loadFromJSON(prev);
-    fb.requestRenderAll();
+    setElements([...historyRef.current[historyRef.current.length - 1]]);
   }, []);
 
   /* ── 전체 지우기 ── */
   const clearAll = useCallback(() => {
-    const fb = fbRef.current;
-    if (!fb) return;
-    fb.clear();
-    fb.backgroundColor = BG;
-    fb.requestRenderAll();
-    historyRef.current = [fb.toJSON()];
-  }, []);
+    setElements([]);
+    setCurrent(null);
+    historyRef.current = [[]];
+  }, [setCurrent]);
 
-  /* ── 도구 목록 ── */
   const TOOLS: { id: Tool; label: string; icon: React.ReactNode }[] = [
     { id: 'pencil', label: '펜',
       icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> },
@@ -216,8 +197,8 @@ export default function FabricCanvas() {
       icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6" strokeWidth={2}/></svg> },
   ];
 
-  const showSize   = true;
   const showColors = tool !== 'eraser';
+  const cursor = tool === 'pencil' ? 'crosshair' : tool === 'eraser' ? 'cell' : 'crosshair';
 
   return (
     <div className={styles.wrapper}>
@@ -239,25 +220,20 @@ export default function FabricCanvas() {
         <div className={styles.sep} />
 
         {/* 크기 슬라이더 */}
-        {showSize && (
-          <>
-            <div className={styles.group}>
-              <span className={styles.sizeLabel}>{size}px</span>
-              <input
-                type="range"
-                min={1} max={tool === 'eraser' ? 60 : 40}
-                value={size}
-                onChange={e => setSize(Number(e.target.value))}
-                className={styles.slider}
-              />
-            </div>
-            <div className={styles.sep} />
-          </>
-        )}
+        <div className={styles.group}>
+          <span className={styles.sizeLabel}>{size}px</span>
+          <input
+            type="range"
+            min={1} max={tool === 'eraser' ? 60 : 40}
+            value={size}
+            onChange={e => setSize(Number(e.target.value))}
+            className={styles.slider}
+          />
+        </div>
 
-        {/* 색상 팔레트 */}
         {showColors && (
           <>
+            <div className={styles.sep} />
             <div className={styles.group}>
               {PALETTE.map(c => (
                 <button
@@ -276,11 +252,12 @@ export default function FabricCanvas() {
                 title="직접 선택"
               />
             </div>
-            <div className={styles.sep} />
           </>
         )}
 
-        {/* 액션 */}
+        <div className={styles.sep} />
+
+        {/* 액션 버튼 */}
         <div className={styles.group}>
           <button className={styles.actionBtn} onClick={undo} title="실행 취소">
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -296,7 +273,23 @@ export default function FabricCanvas() {
       </div>
 
       <div ref={containerRef} className={styles.canvasWrap}>
-        <canvas ref={canvasElRef} />
+        {stageSize.w > 0 && (
+          <Stage
+            ref={stageRef}
+            width={stageSize.w}
+            height={stageSize.h}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            style={{ cursor, background: '#ffffff' }}
+          >
+            <Layer>
+              {elements.map(renderEl)}
+              {currentState && renderEl(currentState)}
+            </Layer>
+          </Stage>
+        )}
       </div>
     </div>
   );

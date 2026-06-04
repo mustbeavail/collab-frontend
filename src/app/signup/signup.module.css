@@ -134,3 +134,116 @@
 }
 
 .link:hover { text-decoration: underline; }
+
+/* 프로필 사진 */
+.avatarArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.avatarBtn {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: var(--bg-input);
+  cursor: pointer;
+  padding: 0;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.avatarOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.avatarBtn:hover .avatarOverlay { opacity: 1; }
+
+.avatarHint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-top: 10px;
+}
+
+.fileInput { display: none; }
+
+/* 이메일 + 버튼 행 */
+.emailRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.emailRow .input { flex: 1; min-width: 0; }
+
+.codeBtn {
+  flex-shrink: 0;
+  background-color: var(--accent-dim);
+  color: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.codeBtn:hover:not(:disabled) { opacity: 0.85; }
+.codeBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.verifiedBadge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--online);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.inputVerified {
+  border-color: var(--online) !important;
+  opacity: 0.7;
+}
+
+/* 메시지 */
+.successMsg {
+  color: var(--online);
+  font-size: 0.8125rem;
+  margin-top: -8px;
+}
+
+.errorMsg {
+  color: var(--danger);
+  font-size: 0.8125rem;
+  margin-top: -8px;
+}
