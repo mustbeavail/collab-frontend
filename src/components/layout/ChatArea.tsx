@@ -61,13 +61,13 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
           <button
             className={`${styles.headerBtn} ${styles.closeAllBtn} ${windows.length === 0 ? styles.closeAllBtnDisabled : ''}`}
             onClick={windows.length > 0 ? onCloseAll : undefined}
-            title="모두 닫기"
+            title="채팅방 모두 닫기"
             disabled={windows.length === 0}
           >
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <span>모두 닫기</span>
+            <span>채팅방 모두 닫기</span>
           </button>
         </div>
       </div>

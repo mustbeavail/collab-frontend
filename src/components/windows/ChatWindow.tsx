@@ -11,7 +11,7 @@ import styles from './ChatWindow.module.css';
 import { getMembersForChat } from '@/data/mockData';
 import type { ChatWindowState } from '@/app/page';
 
-const MIN_WIDTH  = 600;
+const MIN_WIDTH  = 760;
 const MIN_HEIGHT = 400;
 
 interface Props {
