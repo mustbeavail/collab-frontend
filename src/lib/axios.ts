@@ -28,7 +28,7 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+    if (error.response?.status === 401 && !original._retry && !original.url?.startsWith('/api/auth/')) {
       original._retry = true;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { useAuthStore } = require('@/store/authStore');
