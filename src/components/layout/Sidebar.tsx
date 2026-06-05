@@ -3,18 +3,19 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
-import { teams } from '@/data/mockData';
 import type { ChatInfo } from '@/app/page';
 import { useAuthStore } from '@/store/authStore';
 import { useFriendStore } from '@/store/friendStore';
+import { useTeamStore } from '@/store/teamStore';
 import { friendService } from '@/services/friend';
 import { userService } from '@/services/user';
+import { teamService } from '@/services/team';
 import type { FriendItem } from '@/types/friend';
 import type { UserSearchResult } from '@/types/user';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 
 type MenuFriend  = { friend: FriendItem; x: number; y: number };
-type MenuTeam    = { teamId: number; name: string; x: number; y: number };
+type MenuTeam    = { teamIdx: number; name: string; x: number; y: number };
 type MenuChannel = { id: string; ch: string; x: number; y: number };
 
 interface Props {
@@ -25,10 +26,11 @@ interface Props {
 
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
   const user = useAuthStore((s) => s.user);
-  const { friends, loading: friendsLoading, setFriends, removeFriend, setLoading } = useFriendStore();
+  const { friends, loading: friendsLoading, setFriends, removeFriend, setLoading: setFriendsLoading } = useFriendStore();
+  const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading } = useTeamStore();
 
-  const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set([1]));
-  const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set(['1-channels']));
+  const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set<number>());
+  const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set<string>());
   const [menuFriend,        setMenuFriend]        = useState<MenuFriend | null>(null);
   const [menuTeam,          setMenuTeam]          = useState<MenuTeam | null>(null);
   const [menuChannel,       setMenuChannel]       = useState<MenuChannel | null>(null);
@@ -46,12 +48,29 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setLoading(true);
+    setFriendsLoading(true);
     friendService.getFriends()
       .then(setFriends)
       .catch(() => setFriends([]))
-      .finally(() => setLoading(false));
-  }, [setFriends, setLoading]);
+      .finally(() => setFriendsLoading(false));
+  }, [setFriends, setFriendsLoading]);
+
+  useEffect(() => {
+    setTeamsLoading(true);
+    teamService.getMyTeams()
+      .then(setTeams)
+      .catch(() => setTeams([]))
+      .finally(() => setTeamsLoading(false));
+  }, [setTeams, setTeamsLoading]);
+
+  // 팀 로드 후 첫 번째 팀 자동 선택
+  useEffect(() => {
+    if (teams.length > 0 && selectedTeams.size === 0) {
+      const firstIdx = teams[0].teamIdx;
+      setSelectedTeams(new Set([firstIdx]));
+      setOpenCategories(new Set([`${firstIdx}-channels`]));
+    }
+  }, [teams]);
 
   // 검색어 변경 시 300ms 디바운스
   useEffect(() => {
@@ -79,7 +98,6 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       await friendService.sendRequest(targetUserId);
       setSentRequests((prev) => new Set([...prev, targetUserId]));
     } catch {
-      // 이미 요청됨 등 서버 오류는 무시
       setSentRequests((prev) => new Set([...prev, targetUserId]));
     }
   };
@@ -93,13 +111,13 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       return next;
     });
 
-  const toggleTeam = (id: number) => {
+  const toggleTeam = (idx: number) => {
     setSelectedTeams(prev => {
       const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); }
+      if (next.has(idx)) { next.delete(idx); }
       else {
-        next.add(id);
-        setOpenCategories(cats => new Set([...cats, `${id}-channels`]));
+        next.add(idx);
+        setOpenCategories(cats => new Set([...cats, `${idx}-channels`]));
       }
       return next;
     });
@@ -137,11 +155,11 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     setMenuFriend({ friend: f, x: rect.right + 8, y: rect.top });
   };
 
-  const openTeamMenu = (teamId: number, name: string, e: React.MouseEvent) => {
+  const openTeamMenu = (teamIdx: number, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     closeAllMenus();
-    setMenuTeam({ teamId, name, x: rect.right + 8, y: rect.top });
+    setMenuTeam({ teamIdx, name, x: rect.right + 8, y: rect.top });
   };
 
   const openChannelMenu = (id: string, ch: string, e: React.MouseEvent) => {
@@ -180,20 +198,21 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
             </svg>
           </button>
           {!collapsedSections.has('teams') && <div className={styles.itemList}>
-            {teams.map(team => (
-              <div key={team.id}>
+            {teamsLoading && <div className={styles.loadingText}>불러오는 중...</div>}
+            {!teamsLoading && teams.map(team => (
+              <div key={team.teamIdx}>
                 {/* 팀 행: 토글 버튼 + 점세개 버튼 */}
                 <div className={styles.teamRow}>
                   <button
-                    onClick={() => toggleTeam(team.id)}
-                    className={`${styles.teamBtn} ${selectedTeams.has(team.id) ? styles.teamBtnActive : ''}`}
+                    onClick={() => toggleTeam(team.teamIdx)}
+                    className={`${styles.teamBtn} ${selectedTeams.has(team.teamIdx) ? styles.teamBtnActive : ''}`}
                   >
-                    <div className={`${styles.teamAvatar} ${selectedTeams.has(team.id) ? styles.teamAvatarActive : ''}`}>
-                      {team.initial}
+                    <div className={`${styles.teamAvatar} ${selectedTeams.has(team.teamIdx) ? styles.teamAvatarActive : ''}`}>
+                      {team.teamName[0]}
                     </div>
-                    <span className={styles.teamName}>{team.name}</span>
+                    <span className={styles.teamName}>{team.teamName}</span>
                     <svg
-                      className={`${styles.teamChevron} ${selectedTeams.has(team.id) ? styles.teamChevronOpen : ''}`}
+                      className={`${styles.teamChevron} ${selectedTeams.has(team.teamIdx) ? styles.teamChevronOpen : ''}`}
                       width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -201,43 +220,43 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                   </button>
                   <button
                     className={styles.dotBtn}
-                    onClick={e => openTeamMenu(team.id, team.name, e)}
+                    onClick={e => openTeamMenu(team.teamIdx, team.teamName, e)}
                     title="팀 메뉴"
                   >
                     <DotsIcon />
                   </button>
                 </div>
 
-                {selectedTeams.has(team.id) && (
+                {selectedTeams.has(team.teamIdx) && (
                   <div className={styles.teamBody}>
 
                     {/* 채팅방 카테고리 */}
-                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-channels`)}>
-                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-channels`) ? styles.catChevronOpen : ''}`}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.teamIdx}-channels`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.teamIdx}-channels`) ? styles.catChevronOpen : ''}`}
                         width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                       </svg>
                       채팅방
                       <span className={styles.categoryCount}>{team.channels.length}</span>
                     </button>
-                    {openCategories.has(`${team.id}-channels`) && (
+                    {openCategories.has(`${team.teamIdx}-channels`) && (
                       <div className={styles.categoryItems}>
                         {team.channels.map(ch => {
-                          const id = `channel-${team.id}-${ch}`;
+                          const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
                           const isOpen    = openChatIds.includes(id);
                           const isShaking = shakingChatId === id;
                           return (
-                            <div key={ch} className={styles.channelRow}>
+                            <div key={ch.roomIdx} className={styles.channelRow}>
                               <button
                                 className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
-                                onClick={() => handleChatOpen({ id, name: ch, type: 'channel' })}
+                                onClick={() => handleChatOpen({ id, name: ch.roomName, type: 'channel' })}
                               >
                                 <span className={styles.channelHash}>#</span>
-                                <span>{ch}</span>
+                                <span>{ch.roomName}</span>
                               </button>
                               <button
                                 className={styles.dotBtn}
-                                onClick={e => openChannelMenu(id, ch, e)}
+                                onClick={e => openChannelMenu(id, ch.roomName, e)}
                                 title="채팅방 메뉴"
                               >
                                 <DotsIcon />
@@ -249,24 +268,24 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                     )}
 
                     {/* 멤버 카테고리 */}
-                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-members`)}>
-                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-members`) ? styles.catChevronOpen : ''}`}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.teamIdx}-members`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.teamIdx}-members`) ? styles.catChevronOpen : ''}`}
                         width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                       </svg>
                       멤버
                       <span className={styles.categoryCount}>{team.members.length}</span>
                     </button>
-                    {openCategories.has(`${team.id}-members`) && (
+                    {openCategories.has(`${team.teamIdx}-members`) && (
                       <div className={styles.categoryItems}>
                         {team.members.map(m => (
-                          <div key={m.id} className={styles.memberItem}>
+                          <div key={m.userId} className={styles.memberItem}>
                             <div className={styles.memberAvatarWrap}>
-                              <div className={styles.memberAvatar}>{m.name[0]}</div>
-                              <div className={`${styles.memberDot} ${m.online ? styles.online : styles.offline}`} />
+                              <div className={styles.memberAvatar}>{m.nickname[0]}</div>
+                              <div className={`${styles.memberDot} ${styles.offline}`} />
                             </div>
                             <div className={styles.memberInfo}>
-                              <span className={styles.memberName}>{m.name}</span>
+                              <span className={styles.memberName}>{m.nickname}</span>
                               {m.role && <span className={styles.memberRole}>{m.role}</span>}
                             </div>
                           </div>
@@ -275,29 +294,14 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                     )}
 
                     {/* 일정 카테고리 */}
-                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.id}-schedule`)}>
-                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.id}-schedule`) ? styles.catChevronOpen : ''}`}
+                    <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.teamIdx}-schedule`)}>
+                      <svg className={`${styles.catChevron} ${openCategories.has(`${team.teamIdx}-schedule`) ? styles.catChevronOpen : ''}`}
                         width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                       </svg>
                       일정
-                      <span className={styles.categoryCount}>{team.schedule.length}</span>
+                      <span className={styles.categoryCount}>0</span>
                     </button>
-                    {openCategories.has(`${team.id}-schedule`) && (
-                      <div className={styles.categoryItems}>
-                        {team.schedule.map(s => (
-                          <div key={s.id} className={styles.scheduleItem}>
-                            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.scheduleIcon}>
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <div className={styles.scheduleText}>
-                              <span className={styles.scheduleTitle}>{s.title}</span>
-                              <span className={styles.scheduleDate}>{s.date}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
                   </div>
                 )}
@@ -329,21 +333,21 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
             <div className={styles.itemList}>
               {teams.flatMap(team =>
                 team.channels.map(ch => {
-                  const id = `channel-${team.id}-${ch}`;
+                  const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
                   const isOpen    = openChatIds.includes(id);
                   const isShaking = shakingChatId === id;
                   return (
                     <div key={id} className={styles.channelRow}>
                       <button
                         className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
-                        onClick={() => handleChatOpen({ id, name: ch, type: 'channel' })}
+                        onClick={() => handleChatOpen({ id, name: ch.roomName, type: 'channel' })}
                       >
                         <span className={styles.channelHash}>#</span>
-                        <span>{ch}</span>
+                        <span>{ch.roomName}</span>
                       </button>
                       <button
                         className={styles.dotBtn}
-                        onClick={e => openChannelMenu(id, ch, e)}
+                        onClick={e => openChannelMenu(id, ch.roomName, e)}
                         title="채팅방 메뉴"
                       >
                         <DotsIcon />
