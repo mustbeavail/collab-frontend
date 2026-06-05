@@ -172,3 +172,41 @@
   color: var(--danger);
   border-color: rgba(239, 68, 68, 0.3);
 }
+
+.avatarClickable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.avatarClickable:hover {
+  opacity: 0.75;
+}
+
+.nameClickable {
+  cursor: pointer;
+}
+
+.nameClickable:hover {
+  color: var(--accent-light);
+  text-decoration: underline;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 4px;
+}
+
+.teamIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-dim);
+  color: var(--accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}

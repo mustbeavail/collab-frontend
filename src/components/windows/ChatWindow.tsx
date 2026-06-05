@@ -8,8 +8,12 @@ import FilePanel from '@/components/chat/FilePanel';
 import MinutesPanel from '@/components/chat/MinutesPanel';
 import DrawPanel from '@/components/chat/DrawPanel';
 import styles from './ChatWindow.module.css';
-import { getMembersForChat } from '@/data/mockData';
 import type { ChatWindowState } from '@/app/page';
+import { useChatRoom } from '@/hooks/useChatRoom';
+import { chatService } from '@/services/chat';
+import { useAuthStore } from '@/store/authStore';
+import { userService } from '@/services/user';
+import type { ChatRoomDetail, RoomMember } from '@/types/chat';
 
 const MIN_WIDTH  = 760;
 const MIN_HEIGHT = 400;
@@ -21,11 +25,13 @@ interface Props {
   onMinimize: () => void;
   onUpdate: (updates: Partial<ChatWindowState>) => void;
   onBringToFront: () => void;
+  onUnreadChange: (count: number) => void;
 }
 
-export default function ChatWindow({ win, containerRef, onClose, onMinimize, onUpdate, onBringToFront }: Props) {
-  const [membersOpen, setMembersOpen] = useState(false);
-  const [searchOpen,  setSearchOpen]  = useState(false);
+export default function ChatWindow({ win, containerRef, onClose, onMinimize, onUpdate, onBringToFront, onUnreadChange }: Props) {
+  // 패널 모드: null=닫힘, 'members'=멤버, 'info'=채팅방 정보
+  const [panelMode, setPanelMode] = useState<'members' | 'info' | null>(null);
+  const [searchOpen, setSearchOpen]   = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState('all');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +43,133 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const [micMuted, setMicMuted] = useState(false);
   const [confirmModal, setConfirmModal] = useState<'voice' | 'video' | 'to-voice' | 'to-video' | null>(null);
   const [prevWinState, setPrevWinState] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const members = getMembersForChat(win.chat.id);
+
+  // 멤버 관리 상태
+  const [roomMembers, setRoomMembers] = useState<RoomMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [inviteQuery, setInviteQuery] = useState('');
+  const [inviteResults, setInviteResults] = useState<{ userId: string; nickname: string; avatarUrl: string | null }[]>([]);
+  const [inviteSearching, setInviteSearching] = useState(false);
+  const [inviting, setInviting] = useState<string | null>(null);
+  const inviteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 채팅방 정보 상태
+  const [roomInfo, setRoomInfo] = useState<ChatRoomDetail | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const currentUserId = useAuthStore((s) => s.user?.userId);
+  const [roomIdx, setRoomIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const { id, type, targetUserId } = win.chat;
+    if (type === 'channel') {
+      const parts = id.split('-');
+      const idx = Number(parts[parts.length - 1]);
+      if (!isNaN(idx)) setRoomIdx(idx);
+    } else if (type === 'dm' && targetUserId) {
+      chatService.getOrCreateDmRoom(targetUserId)
+        .then((room) => setRoomIdx(room.roomIdx))
+        .catch(() => {});
+    }
+  }, [win.chat]);
+
+  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, initialLoad, unreadCount } =
+    useChatRoom(roomIdx, !win.minimized);
+
+  // 미읽음 카운트를 부모로 전달
+  useEffect(() => {
+    onUnreadChange(unreadCount);
+  }, [unreadCount, onUnreadChange]);
+
+  const isDmRoom = win.chat.type === 'dm';
+  const myMember = roomMembers.find(m => m.userId === currentUserId);
+  const isOwner = myMember?.role === 'OWNER';
+
+  // 멤버 패널 열릴 때 멤버 목록 로드
+  useEffect(() => {
+    if (panelMode !== 'members' || !roomIdx) return;
+    setMembersLoading(true);
+    chatService.getMembers(roomIdx)
+      .then(setRoomMembers)
+      .catch(() => {})
+      .finally(() => setMembersLoading(false));
+  }, [panelMode, roomIdx]);
+
+  // 정보 패널 열릴 때 방 정보 로드
+  useEffect(() => {
+    if (panelMode !== 'info' || !roomIdx) return;
+    setInfoLoading(true);
+    setEditMode(false);
+    chatService.getRoomInfo(roomIdx)
+      .then(info => {
+        setRoomInfo(info);
+        setEditName(info.roomName);
+        setEditDesc(info.description ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setInfoLoading(false));
+  }, [panelMode, roomIdx]);
+
+  const handleSaveInfo = async () => {
+    if (!roomIdx || !editName.trim()) return;
+    setSaving(true);
+    try {
+      const updated = await chatService.updateRoomInfo(roomIdx, editName.trim(), editDesc.trim() || null);
+      setRoomInfo(updated);
+      setEditMode(false);
+    } catch { /* 실패 무시 */ }
+    finally { setSaving(false); }
+  };
+
+  // 초대 검색 디바운스
+  useEffect(() => {
+    if (inviteTimerRef.current) clearTimeout(inviteTimerRef.current);
+    if (!inviteQuery.trim()) { setInviteResults([]); return; }
+    inviteTimerRef.current = setTimeout(() => {
+      setInviteSearching(true);
+      userService.searchUsers(inviteQuery.trim())
+        .then(results => setInviteResults(
+          results
+            .filter(u => !roomMembers.some(m => m.userId === u.userId))
+            .map(u => ({ userId: u.userId, nickname: u.nickname, avatarUrl: u.avatarUrl ?? null }))
+        ))
+        .catch(() => setInviteResults([]))
+        .finally(() => setInviteSearching(false));
+    }, 300);
+    return () => { if (inviteTimerRef.current) clearTimeout(inviteTimerRef.current); };
+  }, [inviteQuery, roomMembers]);
+
+  const handleInvite = async (userId: string) => {
+    if (!roomIdx) return;
+    setInviting(userId);
+    try {
+      await chatService.inviteMember(roomIdx, userId);
+      const updated = await chatService.getMembers(roomIdx);
+      setRoomMembers(updated);
+      setInviteResults(prev => prev.filter(u => u.userId !== userId));
+    } catch { /* 실패 무시 */ }
+    finally { setInviting(null); }
+  };
+
+  const handleLeave = async () => {
+    if (!roomIdx || !confirm('채팅방에서 나가시겠습니까?')) return;
+    try {
+      await chatService.leaveRoom(roomIdx);
+      onClose();
+    } catch { /* 실패 무시 */ }
+  };
+
+  const handleKick = async (userId: string, nickname: string) => {
+    if (!roomIdx || !confirm(`${nickname}님을 채팅방에서 내보내시겠습니까?`)) return;
+    try {
+      await chatService.kickMember(roomIdx, userId);
+      setRoomMembers(prev => prev.filter(m => m.userId !== userId));
+    } catch { /* 실패 무시 */ }
+  };
 
   const isMaximized = prevWinState !== null;
 
@@ -66,7 +198,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     minSizeRef.current.h = targetH;
   };
 
-  // 확장을 유발한 기능이 모두 비활성화되면 최소 크기 잠금 해제
   useEffect(() => {
     const locked = activePanel === 'schedule' || activePanel === 'draw' || videoChatActive;
     if (!locked) {
@@ -84,7 +215,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     setActivePanel(panel);
   };
 
-  // 데모용 모의 마이크/발화 상태 (인덱스 기반으로 고정)
   const memberMicOn = (idx: number) => idx % 3 !== 1;
   const memberSpeaking = (idx: number) => idx === 0;
 
@@ -125,7 +255,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
 
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isMaximized) return;
-    if ((e.target as HTMLElement).closest('button, input, select')) return;
+    if ((e.target as HTMLElement).closest('button, input, select, textarea')) return;
     e.preventDefault();
     const startMouseX = e.clientX, startMouseY = e.clientY;
     const startX = win.x, startY = win.y, winW = win.width, winH = win.height;
@@ -176,15 +306,24 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     document.addEventListener('mouseup', onUp);
   }, [win, containerRef, onUpdate]);
 
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch { return iso; }
+  };
+
   return (
     <div
       className={styles.window}
-      style={{ left: win.x, top: win.y, width: win.width, height: win.height, zIndex: win.zIndex }}
+      style={{
+        left: win.x, top: win.y, width: win.width, height: win.height,
+        zIndex: win.zIndex,
+        display: win.minimized ? 'none' : undefined,
+      }}
       onMouseDown={onBringToFront}
     >
       {/* 헤더 */}
       <div className={styles.header} onMouseDown={handleDragStart}>
-        {/* 채널명 */}
         <div className={styles.title}>
           <span className={styles.prefix}>{win.chat.type === 'channel' ? '#' : '@'}</span>
           <span className={styles.name}>{win.chat.name}</span>
@@ -193,18 +332,29 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         <div className={styles.actions}>
           {/* 멤버 버튼 */}
           <button
-            className={`${styles.membersBtn} ${membersOpen ? styles.membersBtnActive : ''}`}
-            onClick={() => setMembersOpen(v => !v)}
+            className={`${styles.membersBtn} ${panelMode === 'members' ? styles.membersBtnActive : ''}`}
+            onClick={() => setPanelMode(v => v === 'members' ? null : 'members')}
             title="멤버 목록"
           >
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className={styles.memberCountText}>{members.length}명</span>
+            <span className={styles.memberCountText}>{roomMembers.length || ''}명</span>
+          </button>
+
+          {/* 채팅방 정보 버튼 */}
+          <button
+            className={`${styles.actionBtn} ${panelMode === 'info' ? styles.actionBtnInfoActive : ''}`}
+            onClick={() => setPanelMode(v => v === 'info' ? null : 'info')}
+            title="채팅방 정보"
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </button>
           <div className={styles.divider} />
 
-          {/* 인라인 검색 바 (참여인원 버튼 옆) */}
+          {/* 인라인 검색 바 */}
           <div className={`${styles.searchBar} ${searchOpen ? styles.searchBarOpen : ''}`}>
             <select
               className={styles.scopeSelect}
@@ -237,7 +387,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
             </button>
           </div>
 
-          {/* 도구 버튼 */}
           <button
             className={`${styles.actionBtn} ${searchOpen ? styles.actionBtnSearchActive : ''}`}
             title="검색"
@@ -285,7 +434,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
           </button>
           <div className={styles.divider} />
 
-          {/* 음성채팅 버튼 */}
           <button
             className={`${styles.actionBtn} ${voiceChatActive ? styles.actionBtnVoiceActive : styles.actionBtnGreen}`}
             title={voiceChatActive ? '음성채팅 종료' : '음성채팅'}
@@ -295,8 +443,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
           </button>
-
-          {/* 화상채팅 버튼 */}
           <button
             className={`${styles.actionBtn} ${videoChatActive ? styles.actionBtnVideoActive : styles.actionBtnGreen}`}
             title={videoChatActive ? '화상채팅 종료' : '화상채팅'}
@@ -333,10 +479,18 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         </div>
       </div>
 
-      {/* 콘텐츠 + 멤버 패널 */}
+      {/* 콘텐츠 + 사이드 패널 */}
       <div className={styles.contentRow}>
         <div className={styles.chatSection}>
-          <MessageList />
+          <MessageList
+            messages={messages}
+            loading={loading}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            currentUserId={currentUserId}
+            initialLoad={initialLoad}
+          />
 
           {/* 음성 채팅 패널 */}
           {voiceChatActive && (
@@ -354,12 +508,12 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                 </button>
               </div>
               <div className={styles.voiceParticipants}>
-                {members.map((m, idx) => (
-                  <div key={`voice-${m.id}-${m.name}`} className={styles.voiceParticipant}>
+                {roomMembers.map((m, idx) => (
+                  <div key={`voice-${m.userId}`} className={styles.voiceParticipant}>
                     <div className={`${styles.voiceAvatar} ${memberSpeaking(idx) ? styles.voiceAvatarSpeaking : ''}`}>
-                      {m.name[0]}
+                      {m.nickname[0]}
                     </div>
-                    <span className={styles.voiceName}>{m.name}</span>
+                    <span className={styles.voiceName}>{m.nickname}</span>
                     <div className={`${styles.voiceMicIcon} ${memberMicOn(idx) ? styles.micOnColor : styles.micOffColor}`}>
                       {memberMicOn(idx) ? (
                         <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,12 +548,12 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                 </button>
               </div>
               <div className={styles.videoGrid}>
-                {members.map(m => (
-                  <div key={`video-${m.id}-${m.name}`} className={styles.videoCell}>
+                {roomMembers.map(m => (
+                  <div key={`video-${m.userId}`} className={styles.videoCell}>
                     <div className={styles.videoCam}>
-                      <div className={styles.videoCamInitial}>{m.name[0]}</div>
+                      <div className={styles.videoCamInitial}>{m.nickname[0]}</div>
                     </div>
-                    <span className={styles.videoName}>{m.name}</span>
+                    <span className={styles.videoName}>{m.nickname}</span>
                   </div>
                 ))}
               </div>
@@ -412,29 +566,172 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
             showMicToggle={voiceChatActive || videoChatActive}
             micMuted={micMuted}
             onMicToggle={() => setMicMuted(v => !v)}
+            onSend={sendMessage}
           />
         </div>
 
-        <div className={`${styles.memberPanel} ${membersOpen ? styles.memberPanelOpen : ''}`}>
+        {/* 사이드 패널 (멤버 / 채팅방 정보) */}
+        <div className={`${styles.memberPanel} ${panelMode ? styles.memberPanelOpen : ''}`}>
           <div className={styles.memberPanelInner}>
-            <div className={styles.memberPanelHeader}>
-              <span>멤버</span>
-              <span className={styles.memberPanelCount}>{members.length}</span>
-            </div>
-            <div className={styles.memberPanelList}>
-              {members.map(m => (
-                <div key={`${m.id}-${m.name}`} className={styles.memberPanelItem}>
-                  <div className={styles.memberPanelAvatarWrap}>
-                    <div className={styles.memberPanelAvatar}>{m.name[0]}</div>
-                    <div className={`${styles.memberPanelDot} ${m.online ? styles.memberOnline : styles.memberOffline}`} />
-                  </div>
-                  <div className={styles.memberPanelInfo}>
-                    <span className={styles.memberPanelName}>{m.name}</span>
-                    {m.role && <span className={styles.memberPanelRole}>{m.role}</span>}
-                  </div>
+
+            {/* ── 멤버 패널 ── */}
+            {panelMode === 'members' && (
+              <>
+                <div className={styles.memberPanelHeader}>
+                  <span>멤버</span>
+                  <span className={styles.memberPanelCount}>{roomMembers.length}</span>
                 </div>
-              ))}
-            </div>
+
+                {/* 초대 검색 (DM/그룹방만) */}
+                {isDmRoom && (
+                  <div className={styles.inviteSection}>
+                    <input
+                      className={styles.inviteInput}
+                      placeholder="사용자 검색 후 초대..."
+                      value={inviteQuery}
+                      onChange={e => setInviteQuery(e.target.value)}
+                    />
+                    {inviteSearching && <p className={styles.inviteHint}>검색 중...</p>}
+                    {inviteResults.map(u => (
+                      <div key={u.userId} className={styles.inviteResult}>
+                        <div className={styles.memberPanelAvatar}>{u.nickname[0]}</div>
+                        <span className={styles.inviteResultName}>{u.nickname}</span>
+                        <button
+                          className={styles.inviteBtn}
+                          disabled={inviting === u.userId}
+                          onClick={() => handleInvite(u.userId)}
+                        >
+                          초대
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className={styles.memberPanelList}>
+                  {membersLoading
+                    ? <p className={styles.inviteHint}>로딩 중...</p>
+                    : roomMembers.map(m => (
+                      <div key={m.userId} className={styles.memberPanelItem}>
+                        <div className={styles.memberPanelAvatarWrap}>
+                          {m.avatarUrl
+                            ? <img src={m.avatarUrl} alt={m.nickname} className={styles.memberPanelAvatarImg} />
+                            : <div className={styles.memberPanelAvatar}>{m.nickname[0]}</div>
+                          }
+                        </div>
+                        <div className={styles.memberPanelInfo}>
+                          <span className={styles.memberPanelName}>{m.nickname}</span>
+                          {(m.role === 'OWNER' || m.role === 'LEADER') && (
+                            <span className={styles.memberPanelRole}>방장</span>
+                          )}
+                        </div>
+                        {isDmRoom && isOwner && m.userId !== currentUserId && (
+                          <button
+                            className={styles.kickBtn}
+                            title="내보내기"
+                            onClick={() => handleKick(m.userId, m.nickname)}
+                          >
+                            <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  }
+                </div>
+
+                {isDmRoom && (
+                  <button className={styles.leaveBtn} onClick={handleLeave}>
+                    채팅방 나가기
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* ── 채팅방 정보 패널 ── */}
+            {panelMode === 'info' && (
+              <>
+                <div className={styles.memberPanelHeader}>
+                  <span>채팅방 정보</span>
+                  {isDmRoom && isOwner && !editMode && (
+                    <button className={styles.infoEditToggleBtn} onClick={() => setEditMode(true)}>
+                      편집
+                    </button>
+                  )}
+                </div>
+
+                {infoLoading && <p className={styles.inviteHint}>로딩 중...</p>}
+
+                {!infoLoading && roomInfo && !editMode && (
+                  <div className={styles.infoSection}>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>이름</span>
+                      <span className={styles.infoValue}>{roomInfo.roomName}</span>
+                    </div>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>설명</span>
+                      <span className={styles.infoValue}>
+                        {roomInfo.description || <span className={styles.infoEmpty}>없음</span>}
+                      </span>
+                    </div>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>생성일</span>
+                      <span className={styles.infoValue}>{formatDate(roomInfo.createdAt)}</span>
+                    </div>
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>유형</span>
+                      <span className={styles.infoValue}>{roomInfo.isDm ? 'DM / 그룹' : '팀 채널'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {!infoLoading && editMode && (
+                  <div className={styles.infoSection}>
+                    <div className={styles.infoEditGroup}>
+                      <label className={styles.infoLabel}>이름</label>
+                      <input
+                        className={styles.infoEditInput}
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        maxLength={100}
+                      />
+                    </div>
+                    <div className={styles.infoEditGroup}>
+                      <label className={styles.infoLabel}>설명</label>
+                      <textarea
+                        className={styles.infoEditTextarea}
+                        value={editDesc}
+                        onChange={e => setEditDesc(e.target.value)}
+                        maxLength={500}
+                        rows={4}
+                        placeholder="채팅방 설명을 입력하세요..."
+                      />
+                    </div>
+                    <div className={styles.infoEditActions}>
+                      <button
+                        className={styles.infoSaveBtn}
+                        onClick={handleSaveInfo}
+                        disabled={saving || !editName.trim()}
+                      >
+                        {saving ? '저장 중...' : '저장'}
+                      </button>
+                      <button
+                        className={styles.infoCancelBtn}
+                        onClick={() => {
+                          setEditMode(false);
+                          setEditName(roomInfo?.roomName ?? '');
+                          setEditDesc(roomInfo?.description ?? '');
+                        }}
+                        disabled={saving}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 

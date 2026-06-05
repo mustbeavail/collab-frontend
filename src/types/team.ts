@@ -12,7 +12,24 @@ export interface TeamMemberItem {
 export interface TeamItem {
   teamIdx: number;
   teamName: string;
+  about?: string;
   myRole: string;
   channels: TeamChannel[];
   members: TeamMemberItem[];
+}
+
+export interface CreateTeamRequest {
+  teamName: string;
+  about?: string;
+}
+
+export interface UpdateTeamRequest {
+  teamName: string;
+  about?: string;
+}
+
+export interface TeamInvitationItem {
+  tmIdx: number;
+  teamIdx: number;
+  teamName: string;
 }

@@ -2,6 +2,7 @@ export interface UserSearchResult {
   userId: string;
   nickname: string;
   email: string;
+  avatarUrl?: string | null;
 }
 
 export interface UserPublicProfile {

@@ -9,11 +9,19 @@ interface Props {
   showMicToggle?: boolean;
   micMuted?: boolean;
   onMicToggle?: () => void;
+  onSend?: (content: string) => void;
 }
 
-export default function MessageInput({ channelName, isDm = false, showMicToggle = false, micMuted = false, onMicToggle }: Props) {
+export default function MessageInput({ channelName, isDm = false, showMicToggle = false, micMuted = false, onMicToggle, onSend }: Props) {
   const [value, setValue] = useState('');
   const [attachOpen, setAttachOpen] = useState(false);
+
+  const handleSend = () => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onSend?.(trimmed);
+    setValue('');
+  };
   const attachWrapRef = useRef<HTMLDivElement>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
 
@@ -84,6 +92,12 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
             el.style.height = '36px';
             el.style.height = Math.min(el.scrollHeight, 120) + 'px';
           }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
         />
 
         <div className={styles.rightActions}>
@@ -110,7 +124,10 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
-          <button className={`${styles.sendBtn} ${value ? styles.sendBtnActive : styles.sendBtnInactive}`}>
+          <button
+            className={`${styles.sendBtn} ${value.trim() ? styles.sendBtnActive : styles.sendBtnInactive}`}
+            onClick={handleSend}
+          >
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>

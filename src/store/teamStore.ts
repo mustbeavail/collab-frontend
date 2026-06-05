@@ -6,6 +6,9 @@ interface TeamState {
   loading: boolean;
   setTeams: (teams: TeamItem[]) => void;
   setLoading: (loading: boolean) => void;
+  addTeam: (team: TeamItem) => void;
+  updateTeamInStore: (team: TeamItem) => void;
+  removeTeam: (teamIdx: number) => void;
 }
 
 export const useTeamStore = create<TeamState>((set) => ({
@@ -13,4 +16,9 @@ export const useTeamStore = create<TeamState>((set) => ({
   loading: false,
   setTeams: (teams) => set({ teams }),
   setLoading: (loading) => set({ loading }),
+  addTeam: (team) => set((s) => ({ teams: [...s.teams, team] })),
+  updateTeamInStore: (team) =>
+    set((s) => ({ teams: s.teams.map((t) => (t.teamIdx === team.teamIdx ? team : t)) })),
+  removeTeam: (teamIdx) =>
+    set((s) => ({ teams: s.teams.filter((t) => t.teamIdx !== teamIdx) })),
 }));

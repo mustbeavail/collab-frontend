@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
     "axios": "^1.17.0",
     "fabric": "^7.4.0",
     "konva": "^10.3.0",

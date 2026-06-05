@@ -52,3 +52,53 @@
   font-size: 0.875rem;
   line-height: 1.6;
 }
+
+.empty {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.loadingMore {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.scrollHint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 4px 0 8px;
+  opacity: 0.6;
+}
+
+.avatarImg {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.mine {
+  flex-direction: row-reverse;
+}
+
+.mine .body {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+}
+
+.mine .content {
+  background: var(--accent-dim);
+  border-radius: 16px 4px 16px 16px;
+  padding: 8px 12px;
+}
+
+.mineTime {
+  margin-top: 4px;
+}

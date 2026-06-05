@@ -4,14 +4,17 @@ import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import ChatArea from '@/components/layout/ChatArea';
 import AuthGuard from '@/components/auth/AuthGuard';
+import { StompProvider } from '@/providers/StompProvider';
 import styles from './page.module.css';
 import { friendService } from '@/services/friend';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 export type ChatInfo = {
   id: string;
   name: string;
   type: 'channel' | 'dm';
+  targetUserId?: string;
 };
 
 export type ChatWindowState = {
@@ -39,6 +42,8 @@ export default function Home() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [setPendingRequests, setLoading]);
+
+  useWebSocket();
 
   const openChat = useCallback((chat: ChatInfo) => {
     const existing = windows.find(w => w.chat.id === chat.id);
@@ -109,6 +114,7 @@ export default function Home() {
 
   return (
     <AuthGuard>
+      <StompProvider>
       <div className={styles.layout}>
         <Sidebar
           openChatIds={windows.map(w => w.chat.id)}
@@ -124,6 +130,7 @@ export default function Home() {
           onBringToFront={bringToFront}
         />
       </div>
+      </StompProvider>
     </AuthGuard>
   );
 }

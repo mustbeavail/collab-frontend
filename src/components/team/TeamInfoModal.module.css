@@ -1,0 +1,296 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-base);
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editBtn,
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  padding: 5px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.editBtn:hover,
+.closeBtn:hover { background: var(--bg-hover); color: var(--text-base); }
+
+.body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.teamIdentity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.teamAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.teamName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-base);
+  margin: 0 0 4px;
+}
+
+.myRoleBadge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent-light);
+  background: var(--accent-dim);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin: 0;
+}
+
+.section { display: flex; flex-direction: column; gap: 8px; }
+
+.sectionLabel {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.aboutText {
+  font-size: 0.875rem;
+  color: var(--text-sub);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.memberList,
+.channelList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inviteBtn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-light);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.inviteBtn:hover { background: var(--accent-dim); }
+
+.inviteForm {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.inviteInput {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  color: var(--text-base);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.inviteInput:focus { border-color: var(--accent); }
+
+.inviteSendBtn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.inviteSendBtn:hover { opacity: 0.85; }
+.inviteSendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.inviteError {
+  font-size: 0.75rem;
+  color: var(--danger, #ef4444);
+  margin: 0 0 4px;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.memberRow:hover { background: var(--bg-hover); }
+
+.memberProfile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.memberActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.roleSelect {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-family: inherit;
+  padding: 2px 4px;
+  cursor: pointer;
+  outline: none;
+}
+.roleSelect:hover { border-color: var(--accent); }
+
+.kickBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+}
+.kickBtn:hover { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.memberAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-dim);
+  color: var(--accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.memberName {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text-base);
+}
+
+.memberRole {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.channelRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--text-sub);
+  transition: background 0.12s;
+}
+.channelRow:hover { background: var(--bg-hover); }
+
+.channelHash {
+  color: var(--text-muted);
+  font-weight: 600;
+}

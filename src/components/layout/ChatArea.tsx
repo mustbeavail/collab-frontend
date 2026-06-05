@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import ChatWindow from '@/components/windows/ChatWindow';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import styles from './ChatArea.module.css';
@@ -19,6 +19,11 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  const handleUnreadChange = useCallback((windowId: string, count: number) => {
+    setUnreadCounts(prev => ({ ...prev, [windowId]: count }));
+  }, []);
 
   const toggleSearch = () => {
     setSearchOpen(prev => {
@@ -27,8 +32,7 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
     });
   };
 
-  const normal    = windows.filter(w => !w.minimized);
-  const minimized = windows.filter(w =>  w.minimized);
+  const minimized = windows.filter(w => w.minimized);
 
   return (
     <div className={styles.workspace}>
@@ -88,7 +92,8 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
           </div>
         )}
 
-        {normal.map(win => (
+        {/* 항상 렌더링 — 최소화 시 display:none으로 숨김 (STOMP 구독 유지) */}
+        {windows.map(win => (
           <ChatWindow
             key={win.windowId}
             win={win}
@@ -97,27 +102,34 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
             onMinimize={() => onToggleMinimize(win.windowId)}
             onUpdate={updates => onUpdate(win.windowId, updates)}
             onBringToFront={() => onBringToFront(win.windowId)}
+            onUnreadChange={count => handleUnreadChange(win.windowId, count)}
           />
         ))}
 
         {minimized.length > 0 && (
           <div className={styles.minimizedStrip}>
-            {minimized.map(win => (
-              <div key={win.windowId} className={styles.minimizedBar}>
-                <button className={styles.minBarRestore} onClick={() => onToggleMinimize(win.windowId)} title="복원">
-                  <span className={styles.minBarPrefix}>{win.chat.type === 'channel' ? '#' : '@'}</span>
-                  <span className={styles.minBarName}>{win.chat.name}</span>
-                  <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.minBarIcon}>
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                </button>
-                <button className={styles.minBarClose} onClick={() => onClose(win.windowId)} title="닫기">
-                  <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
+            {minimized.map(win => {
+              const unread = unreadCounts[win.windowId] ?? 0;
+              return (
+                <div key={win.windowId} className={styles.minimizedBar}>
+                  <button className={styles.minBarRestore} onClick={() => onToggleMinimize(win.windowId)} title="복원">
+                    <span className={styles.minBarPrefix}>{win.chat.type === 'channel' ? '#' : '@'}</span>
+                    <span className={styles.minBarName}>{win.chat.name}</span>
+                    {unread > 0 && (
+                      <span className={styles.unreadBadge}>{unread > 99 ? '99+' : unread}</span>
+                    )}
+                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.minBarIcon}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button className={styles.minBarClose} onClick={() => onClose(win.windowId)} title="닫기">
+                    <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

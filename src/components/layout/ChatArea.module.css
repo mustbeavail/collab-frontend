@@ -271,3 +271,17 @@
   color: var(--danger);
   background-color: rgba(239, 68, 68, 0.12);
 }
+
+/* 미읽음 배지 */
+.unreadBadge {
+  background-color: var(--danger, #ef4444);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  min-width: 16px;
+  text-align: center;
+}

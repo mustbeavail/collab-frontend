@@ -13,6 +13,9 @@ import { teamService } from '@/services/team';
 import type { FriendItem } from '@/types/friend';
 import type { UserSearchResult } from '@/types/user';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
+import TeamModal from '@/components/team/TeamModal';
+import TeamInfoModal from '@/components/team/TeamInfoModal';
+import type { TeamItem } from '@/types/team';
 
 type MenuFriend  = { friend: FriendItem; x: number; y: number };
 type MenuTeam    = { teamIdx: number; name: string; x: number; y: number };
@@ -27,7 +30,7 @@ interface Props {
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
   const user = useAuthStore((s) => s.user);
   const { friends, loading: friendsLoading, setFriends, removeFriend, setLoading: setFriendsLoading } = useFriendStore();
-  const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading } = useTeamStore();
+  const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading, addTeam, updateTeamInStore, removeTeam } = useTeamStore();
 
   const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set<number>());
   const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set<string>());
@@ -38,6 +41,11 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
   // 프로필 모달
   const [viewingUser, setViewingUser] = useState<ProfileTarget | null>(null);
+
+  // 팀 모달
+  type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
+  const [teamModal,     setTeamModal]     = useState<TeamModalState | null>(null);
+  const [viewingTeam,   setViewingTeam]   = useState<TeamItem | null>(null);
 
   // 친구 추가 검색 패널
   const [friendAddOpen,   setFriendAddOpen]   = useState(false);
@@ -135,10 +143,35 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
   const openFriendDm = (f: FriendItem) => {
     closeAllMenus();
-    handleChatOpen({ id: `dm-${f.friendIdx}`, name: f.nickname, type: 'dm' });
+    handleChatOpen({ id: `dm-${f.friendIdx}`, name: f.nickname, type: 'dm', targetUserId: f.userId });
+  };
+
+  const handleCreateTeam = async (teamName: string, about: string) => {
+    const created = await teamService.createTeam({ teamName, about: about || undefined });
+    addTeam(created);
+    setSelectedTeams(prev => new Set([...prev, created.teamIdx]));
+    setOpenCategories(prev => new Set([...prev, `${created.teamIdx}-channels`]));
+  };
+
+  const handleUpdateTeam = async (teamIdx: number, teamName: string, about: string) => {
+    const updated = await teamService.updateTeam(teamIdx, { teamName, about: about || undefined });
+    updateTeamInStore(updated);
+  };
+
+  const handleDeleteTeam = async (teamIdx: number) => {
+    if (!confirm('팀을 삭제하면 모든 채널과 내용이 사라집니다. 정말 삭제하시겠습니까?')) return;
+    closeAllMenus();
+    try {
+      await teamService.deleteTeam(teamIdx);
+      removeTeam(teamIdx);
+      setSelectedTeams(prev => { const n = new Set(prev); n.delete(teamIdx); return n; });
+    } catch {
+      // 실패 시 변경 없음
+    }
   };
 
   const handleDeleteFriend = async (friendIdx: number) => {
+    if (!confirm('정말 친구를 삭제하시겠습니까?')) return;
     try {
       await friendService.deleteFriend(friendIdx);
       removeFriend(friendIdx);
@@ -279,7 +312,12 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                     {openCategories.has(`${team.teamIdx}-members`) && (
                       <div className={styles.categoryItems}>
                         {team.members.map(m => (
-                          <div key={m.userId} className={styles.memberItem}>
+                          <button
+                            key={m.userId}
+                            className={styles.memberItem}
+                            onClick={() => setViewingUser({ userId: m.userId, nickname: m.nickname, email: m.userId })}
+                            title={`${m.nickname} 프로필 보기`}
+                          >
                             <div className={styles.memberAvatarWrap}>
                               <div className={styles.memberAvatar}>{m.nickname[0]}</div>
                               <div className={`${styles.memberDot} ${styles.offline}`} />
@@ -288,7 +326,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                               <span className={styles.memberName}>{m.nickname}</span>
                               {m.role && <span className={styles.memberRole}>{m.role}</span>}
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -308,7 +346,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
               </div>
             ))}
 
-            <button className={styles.addBtn}>
+            <button className={styles.addBtn} onClick={() => setTeamModal({ mode: 'create' })}>
               <div className={styles.addIcon}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
@@ -526,25 +564,60 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       )}
 
       {/* 팀 컨텍스트 메뉴 */}
-      {menuTeam && (
-        <div className={styles.contextMenu} style={{ top: menuTeam.y, left: menuTeam.x }}>
-          <div className={styles.menuTitle}>{menuTeam.name}</div>
-          <div className={styles.menuDivider} />
-          <button className={styles.menuItem}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            팀 정보 보기
-          </button>
-          <div className={styles.menuDivider} />
-          <button className={`${styles.menuItem} ${styles.menuItemDanger}`}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            팀 나가기
-          </button>
-        </div>
-      )}
+      {menuTeam && (() => {
+        const currentTeam = teams.find(t => t.teamIdx === menuTeam.teamIdx);
+        const myRole = currentTeam?.myRole ?? 'MEMBER';
+        const canEdit = myRole === 'LEADER' || myRole === 'MANAGER';
+        const canDelete = myRole === 'LEADER';
+        return (
+          <div className={styles.contextMenu} style={{ top: menuTeam.y, left: menuTeam.x }}>
+            <div className={styles.menuTitle}>{menuTeam.name}</div>
+            <div className={styles.menuDivider} />
+            <button
+              className={styles.menuItem}
+              onClick={() => { closeAllMenus(); if (currentTeam) setViewingTeam(currentTeam); }}
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              팀 정보 보기
+            </button>
+            {canEdit && (
+              <button
+                className={styles.menuItem}
+                onClick={() => { closeAllMenus(); if (currentTeam) setTeamModal({ mode: 'edit', team: currentTeam }); }}
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                팀 수정
+              </button>
+            )}
+            {canDelete && (
+              <>
+                <div className={styles.menuDivider} />
+                <button
+                  className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                  onClick={() => handleDeleteTeam(menuTeam.teamIdx)}
+                >
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  팀 삭제
+                </button>
+              </>
+            )}
+            {!canEdit && !canDelete && (
+              <button className={`${styles.menuItem} ${styles.menuItemDanger}`}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                팀 나가기
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 채팅방 컨텍스트 메뉴 */}
       {menuChannel && (
@@ -576,6 +649,32 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
           ? () => { openFriendDm(viewingUser as FriendItem); setViewingUser(null); }
           : undefined
         }
+      />
+    )}
+
+    {viewingTeam && (
+      <TeamInfoModal
+        team={viewingTeam}
+        onClose={() => setViewingTeam(null)}
+        onEdit={() => {
+          setTeamModal({ mode: 'edit', team: viewingTeam });
+          setViewingTeam(null);
+        }}
+      />
+    )}
+
+    {teamModal && (
+      <TeamModal
+        mode={teamModal.mode}
+        team={teamModal.mode === 'edit' ? teamModal.team : undefined}
+        onConfirm={async (teamName, about) => {
+          if (teamModal.mode === 'create') {
+            await handleCreateTeam(teamName, about);
+          } else {
+            await handleUpdateTeam(teamModal.team.teamIdx, teamName, about);
+          }
+        }}
+        onClose={() => setTeamModal(null)}
       />
     )}
     </>

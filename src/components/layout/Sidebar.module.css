@@ -156,7 +156,11 @@
 .memberItem {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 10px 5px 28px;
+  width: 100%; background: none; border: none; cursor: pointer;
+  font-family: inherit; text-align: left; border-radius: 4px;
+  transition: background 0.12s;
 }
+.memberItem:hover { background: var(--bg-hover); }
 .memberAvatarWrap { position: relative; flex-shrink: 0; }
 .memberAvatar {
   width: 24px; height: 24px; border-radius: 50%;

@@ -156,9 +156,59 @@
 .memberOnline  { background-color: var(--online); }
 .memberOffline { background-color: var(--text-muted); }
 
-.memberPanelInfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.memberPanelInfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .memberPanelName { font-size: 0.8rem; color: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.memberPanelRole { font-size: 0.68rem; color: var(--text-muted); }
+.memberPanelRole { font-size: 0.68rem; color: var(--accent-light); }
+.memberPanelAvatarImg { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+
+.kickBtn {
+  flex-shrink: 0; opacity: 0; padding: 3px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); border-radius: 4px;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.memberPanelItem:hover .kickBtn { opacity: 1; }
+.kickBtn:hover { background-color: rgba(255,80,80,0.15); color: #ff5050; }
+
+/* 초대 섹션 */
+.inviteSection {
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.inviteInput {
+  width: 100%; padding: 6px 10px; font-size: 0.8rem;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-base);
+  outline: none;
+}
+.inviteInput:focus { border-color: var(--accent-light); }
+.inviteHint { font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 4px 0; }
+.inviteResult {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 2px; border-radius: 6px;
+}
+.inviteResultName { flex: 1; font-size: 0.8rem; color: var(--text-base); }
+.inviteBtn {
+  font-size: 0.72rem; padding: 3px 9px;
+  background: var(--accent-dim); color: var(--accent-light);
+  border: none; border-radius: 6px; cursor: pointer;
+  transition: background-color 0.15s;
+}
+.inviteBtn:hover { background: var(--accent-light); color: #fff; }
+.inviteBtn:disabled { opacity: 0.5; cursor: default; }
+
+/* 나가기 버튼 */
+.leaveBtn {
+  margin: 8px 12px 12px;
+  padding: 7px 0; width: calc(100% - 24px);
+  font-size: 0.8rem; color: #ff5050;
+  background: rgba(255,80,80,0.08);
+  border: 1px solid rgba(255,80,80,0.2);
+  border-radius: 8px; cursor: pointer;
+  transition: background-color 0.15s;
+}
+.leaveBtn:hover { background: rgba(255,80,80,0.18); }
 
 /* 우측 패널 슬라이드 (일정·파일·회의록 공용) */
 .rightPanel {
@@ -428,6 +478,80 @@
   transition: background 0.15s;
 }
 .modalBtnNo:hover { background: var(--bg-surface); }
+
+/* 채팅방 정보 버튼 활성 */
+.actionBtnInfoActive {
+  color: #f9a8d4 !important;
+  background-color: rgba(249, 168, 212, 0.15) !important;
+}
+
+/* 채팅방 정보 패널 편집 토글 */
+.infoEditToggleBtn {
+  font-size: 0.72rem; padding: 2px 8px;
+  background: var(--accent-dim); color: var(--accent-light);
+  border: none; border-radius: 6px; cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s;
+}
+.infoEditToggleBtn:hover { background: var(--accent-light); color: #fff; }
+
+/* 채팅방 정보 본문 */
+.infoSection {
+  padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  overflow-y: auto; flex: 1;
+}
+.infoRow {
+  display: flex; flex-direction: column; gap: 3px;
+}
+.infoLabel {
+  font-size: 0.7rem; color: var(--text-muted);
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.infoValue {
+  font-size: 0.82rem; color: var(--text-base);
+  line-height: 1.4; word-break: break-word;
+}
+.infoEmpty { color: var(--text-muted); font-style: italic; }
+
+/* 편집 폼 */
+.infoEditGroup {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.infoEditInput {
+  width: 100%; padding: 6px 10px; font-size: 0.82rem;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-base); outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.infoEditInput:focus { border-color: var(--accent-light); }
+.infoEditTextarea {
+  width: 100%; padding: 7px 10px; font-size: 0.82rem;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-base); outline: none;
+  font-family: inherit; resize: vertical; min-height: 72px;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.infoEditTextarea:focus { border-color: var(--accent-light); }
+.infoEditActions { display: flex; gap: 6px; }
+.infoSaveBtn {
+  flex: 1; padding: 7px 0; border-radius: 8px;
+  background: var(--accent); color: #fff;
+  border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600;
+  font-family: inherit; transition: opacity 0.15s;
+}
+.infoSaveBtn:hover { opacity: 0.85; }
+.infoSaveBtn:disabled { opacity: 0.45; cursor: default; }
+.infoCancelBtn {
+  flex: 1; padding: 7px 0; border-radius: 8px;
+  background: var(--bg-hover); color: var(--text-sub);
+  border: 1px solid var(--border); cursor: pointer; font-size: 0.82rem;
+  font-family: inherit; transition: background 0.15s;
+}
+.infoCancelBtn:hover { background: var(--bg-surface); }
+.infoCancelBtn:disabled { opacity: 0.45; cursor: default; }
 
 /* 리사이즈 핸들 */
 .resizeHandle {
