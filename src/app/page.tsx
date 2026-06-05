@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import ChatArea from '@/components/layout/ChatArea';
 import AuthGuard from '@/components/auth/AuthGuard';
 import styles from './page.module.css';
+import { friendService } from '@/services/friend';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export type ChatInfo = {
   id: string;
@@ -28,6 +30,15 @@ const MAX_WINDOWS = 20;
 export default function Home() {
   const [windows, setWindows] = useState<ChatWindowState[]>([]);
   const [shakingId, setShakingId] = useState<string | null>(null);
+
+  const { setPendingRequests, setLoading } = useNotificationStore();
+  useEffect(() => {
+    setLoading(true);
+    friendService.getPendingRequests()
+      .then(setPendingRequests)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [setPendingRequests, setLoading]);
 
   const openChat = useCallback((chat: ChatInfo) => {
     const existing = windows.find(w => w.chat.id === chat.id);

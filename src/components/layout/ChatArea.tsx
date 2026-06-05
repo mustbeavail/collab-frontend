@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import ChatWindow from '@/components/windows/ChatWindow';
+import NotificationBell from '@/components/notifications/NotificationBell';
 import styles from './ChatArea.module.css';
 import type { ChatWindowState } from '@/app/page';
 
@@ -58,6 +59,7 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
+          <NotificationBell />
           <button
             className={`${styles.headerBtn} ${styles.closeAllBtn} ${windows.length === 0 ? styles.closeAllBtnDisabled : ''}`}
             onClick={windows.length > 0 ? onCloseAll : undefined}

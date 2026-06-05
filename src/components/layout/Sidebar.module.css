@@ -217,7 +217,159 @@
   background-color: #60a5fa; flex-shrink: 0;
 }
 
+/* 친구 섹션 헤더 */
+.friendSectionHeaderRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sectionHeaderFriend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  padding: 0 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.sectionHeaderFriend:hover { opacity: 0.8; }
+
+.friendAddToggle {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted);
+  transition: background-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.friendAddToggle:hover { background-color: var(--bg-hover); color: var(--accent-light); }
+.friendAddToggleActive { color: var(--accent-light); background-color: var(--bg-hover); }
+
+/* 친구 추가 검색 패널 */
+.friendSearchPanel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.friendSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-base);
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.friendSearchInput::placeholder { color: var(--text-muted); }
+.friendSearchInput:focus { border-color: var(--accent-light); }
+
+.searchStatus {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 4px 4px;
+  text-align: center;
+}
+
+.searchResultItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+.searchResultItem:hover { background-color: var(--bg-hover); }
+
+.searchResultProfile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  border-radius: 6px;
+  transition: opacity 0.15s;
+}
+.searchResultProfile:hover { opacity: 0.8; }
+
+.searchResultAvatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background-color: var(--accent-dim);
+  color: var(--accent-light);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 600; flex-shrink: 0;
+}
+
+.searchResultInfo {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+
+.searchResultName {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-base);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.searchResultEmail {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.searchRequestBtn {
+  height: 24px; padding: 0 9px;
+  background-color: var(--accent);
+  color: white;
+  border: none; border-radius: 6px;
+  font-size: 0.72rem; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.searchRequestBtn:hover { opacity: 0.85; }
+
+.searchTag {
+  font-size: 0.7rem; color: var(--text-muted);
+  background-color: var(--bg-hover);
+  padding: 2px 7px; border-radius: 99px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.searchTagSent {
+  font-size: 0.7rem; color: var(--accent-light);
+  background-color: var(--accent-dim);
+  padding: 2px 7px; border-radius: 99px;
+  flex-shrink: 0;
+}
+
 /* 친구 */
+.loadingText { font-size: 0.8rem; color: var(--text-muted); padding: 6px 10px; }
+
 .friendItem {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px;
   border-radius: 12px; cursor: pointer; background: none; border: none;

@@ -1,5 +1,6 @@
 import apiClient from '@/lib/axios';
 import type { ApiResponse } from '@/types/auth';
+import type { UserSearchResult, UserPublicProfile } from '@/types/user';
 
 export interface UpdateProfileRequest {
   nickname: string;
@@ -36,6 +37,16 @@ export const userService = {
 
   withdraw: () =>
     apiClient.delete('/api/users/me'),
+
+  searchUsers: (q: string) =>
+    apiClient
+      .get<ApiResponse<UserSearchResult[]>>('/api/users/search', { params: { q } })
+      .then((r) => r.data.data),
+
+  getUserPublicProfile: (userId: string) =>
+    apiClient
+      .get<ApiResponse<UserPublicProfile>>(`/api/users/${userId}`)
+      .then((r) => r.data.data),
 
   // 프로필 사진 업로드 — POST /api/users/me/avatar (multipart)
   uploadAvatar: (file: File) => {

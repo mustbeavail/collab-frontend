@@ -1,14 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
-import { teams, friends } from '@/data/mockData';
-import type { Friend } from '@/data/mockData';
+import { teams } from '@/data/mockData';
 import type { ChatInfo } from '@/app/page';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
+import { friendService } from '@/services/friend';
+import { userService } from '@/services/user';
+import type { FriendItem } from '@/types/friend';
+import type { UserSearchResult } from '@/types/user';
+import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 
-type MenuFriend  = { friend: Friend; x: number; y: number };
+type MenuFriend  = { friend: FriendItem; x: number; y: number };
 type MenuTeam    = { teamId: number; name: string; x: number; y: number };
 type MenuChannel = { id: string; ch: string; x: number; y: number };
 
@@ -20,12 +25,64 @@ interface Props {
 
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
   const user = useAuthStore((s) => s.user);
+  const { friends, loading: friendsLoading, setFriends, removeFriend, setLoading } = useFriendStore();
+
   const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set([1]));
   const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set(['1-channels']));
   const [menuFriend,        setMenuFriend]        = useState<MenuFriend | null>(null);
   const [menuTeam,          setMenuTeam]          = useState<MenuTeam | null>(null);
   const [menuChannel,       setMenuChannel]       = useState<MenuChannel | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  // 프로필 모달
+  const [viewingUser, setViewingUser] = useState<ProfileTarget | null>(null);
+
+  // 친구 추가 검색 패널
+  const [friendAddOpen,   setFriendAddOpen]   = useState(false);
+  const [searchQuery,     setSearchQuery]     = useState('');
+  const [searchResults,   setSearchResults]   = useState<UserSearchResult[]>([]);
+  const [searchLoading,   setSearchLoading]   = useState(false);
+  const [sentRequests,    setSentRequests]    = useState<Set<string>>(new Set());
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    friendService.getFriends()
+      .then(setFriends)
+      .catch(() => setFriends([]))
+      .finally(() => setLoading(false));
+  }, [setFriends, setLoading]);
+
+  // 검색어 변경 시 300ms 디바운스
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    searchTimerRef.current = setTimeout(() => {
+      setSearchLoading(true);
+      userService.searchUsers(searchQuery.trim())
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearchLoading(false));
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
+
+  const toggleFriendAdd = () => {
+    setFriendAddOpen((v) => {
+      if (v) { setSearchQuery(''); setSearchResults([]); }
+      return !v;
+    });
+  };
+
+  const handleSendRequest = async (targetUserId: string) => {
+    try {
+      await friendService.sendRequest(targetUserId);
+      setSentRequests((prev) => new Set([...prev, targetUserId]));
+    } catch {
+      // 이미 요청됨 등 서버 오류는 무시
+      setSentRequests((prev) => new Set([...prev, targetUserId]));
+    }
+  };
 
   const closeAllMenus = () => { setMenuFriend(null); setMenuTeam(null); setMenuChannel(null); };
 
@@ -58,12 +115,22 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
   const handleChatOpen = (chat: ChatInfo) => onChatOpen(chat);
 
-  const openFriendDm = (f: Friend) => {
+  const openFriendDm = (f: FriendItem) => {
     closeAllMenus();
-    handleChatOpen({ id: `dm-${f.id}`, name: f.name, type: 'dm' });
+    handleChatOpen({ id: `dm-${f.friendIdx}`, name: f.nickname, type: 'dm' });
   };
 
-  const openContextMenu = (f: Friend, e: React.MouseEvent) => {
+  const handleDeleteFriend = async (friendIdx: number) => {
+    try {
+      await friendService.deleteFriend(friendIdx);
+      removeFriend(friendIdx);
+    } catch {
+      // 삭제 실패 시 메뉴만 닫음
+    }
+    closeAllMenus();
+  };
+
+  const openContextMenu = (f: FriendItem, e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     closeAllMenus();
@@ -92,6 +159,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   );
 
   return (
+    <>
     <aside className={styles.sidebar}>
       {/* 헤더 */}
       <div className={styles.header}>
@@ -291,42 +359,100 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
         {/* ─── 친구 ─── */}
         <div>
-          <button className={styles.sectionHeader} onClick={() => toggleSection('friends')}>
-            <span className={styles.sectionLabel}>친구</span>
-            <svg className={`${styles.sectionChevron} ${collapsedSections.has('friends') ? '' : styles.sectionChevronOpen}`}
-              width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+          <div className={styles.friendSectionHeaderRow}>
+            <button className={styles.sectionHeaderFriend} onClick={() => toggleSection('friends')}>
+              <span className={styles.sectionLabel}>친구</span>
+              <svg className={`${styles.sectionChevron} ${collapsedSections.has('friends') ? '' : styles.sectionChevronOpen}`}
+                width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <button
+              className={`${styles.friendAddToggle} ${friendAddOpen ? styles.friendAddToggleActive : ''}`}
+              onClick={toggleFriendAdd}
+              title={friendAddOpen ? '닫기' : '친구 추가'}
+            >
+              {friendAddOpen
+                ? <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+                : <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/></svg>
+              }
+            </button>
+          </div>
+
           {!collapsedSections.has('friends') && (
             <div className={styles.itemList}>
-              {friends.map(f => {
-                const isShaking = shakingChatId === `dm-${f.id}`;
+              {/* 친구 추가 인라인 패널 */}
+              {friendAddOpen && (
+                <div className={styles.friendSearchPanel}>
+                  <input
+                    className={styles.friendSearchInput}
+                    placeholder="닉네임 또는 이메일 검색..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searchLoading && (
+                    <div className={styles.searchStatus}>검색 중...</div>
+                  )}
+                  {!searchLoading && searchQuery.trim() && searchResults.length === 0 && (
+                    <div className={styles.searchStatus}>검색 결과가 없습니다.</div>
+                  )}
+                  {searchResults.map((u) => {
+                    const isAlreadyFriend = friends.some((f) => f.userId === u.userId);
+                    const isSent = sentRequests.has(u.userId);
+                    return (
+                      <div key={u.userId} className={styles.searchResultItem}>
+                        <button
+                          className={styles.searchResultProfile}
+                          onClick={() => setViewingUser(u)}
+                          title="프로필 보기"
+                        >
+                          <div className={styles.searchResultAvatar}>{u.nickname[0]}</div>
+                          <div className={styles.searchResultInfo}>
+                            <span className={styles.searchResultName}>{u.nickname}</span>
+                            <span className={styles.searchResultEmail}>{u.email}</span>
+                          </div>
+                        </button>
+                        {isAlreadyFriend ? (
+                          <span className={styles.searchTag}>친구</span>
+                        ) : isSent ? (
+                          <span className={styles.searchTagSent}>요청됨</span>
+                        ) : (
+                          <button
+                            className={styles.searchRequestBtn}
+                            onClick={() => handleSendRequest(u.userId)}
+                          >
+                            요청
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {friendsLoading && (
+                <div className={styles.loadingText}>불러오는 중...</div>
+              )}
+              {!friendsLoading && friends.map(f => {
+                const isShaking = shakingChatId === `dm-${f.friendIdx}`;
                 return (
                   <button
-                    key={f.id}
+                    key={f.friendIdx}
                     className={[styles.friendItem, isShaking ? styles.shaking : ''].join(' ')}
                     onClick={e => openContextMenu(f, e)}
                   >
                     <div className={styles.avatarWrap}>
-                      <div className={styles.friendAvatar}>{f.name[0]}</div>
-                      <div className={`${styles.statusDot} ${f.online ? styles.online : styles.offline}`} />
+                      <div className={styles.friendAvatar}>{f.nickname[0]}</div>
+                      <div className={`${styles.statusDot} ${styles.offline}`} />
                     </div>
-                    <span className={styles.friendName}>{f.name}</span>
+                    <span className={styles.friendName}>{f.nickname}</span>
                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.friendMenuIcon}>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                     </svg>
                   </button>
                 );
               })}
-              <button className={styles.addBtn}>
-                <div className={styles.addIcon}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
-                <span className={styles.addText}>친구 추가</span>
-              </button>
             </div>
           )}
           <div className={styles.sectionDivider} />
@@ -361,7 +487,10 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       {/* 친구 컨텍스트 메뉴 */}
       {menuFriend && (
         <div className={styles.contextMenu} style={{ top: menuFriend.y, left: menuFriend.x }}>
-          <button className={styles.menuItem}>
+          <button
+            className={styles.menuItem}
+            onClick={() => { setViewingUser(menuFriend.friend); closeAllMenus(); }}
+          >
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
@@ -380,7 +509,10 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
             팀으로 초대
           </button>
           <div className={styles.menuDivider} />
-          <button className={`${styles.menuItem} ${styles.menuItemDanger}`}>
+          <button
+            className={`${styles.menuItem} ${styles.menuItemDanger}`}
+            onClick={() => handleDeleteFriend(menuFriend.friend.friendIdx)}
+          >
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
             </svg>
@@ -431,5 +563,17 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
         </div>
       )}
     </aside>
+
+    {viewingUser && (
+      <UserProfileModal
+        user={viewingUser}
+        onClose={() => setViewingUser(null)}
+        onDm={'friendIdx' in viewingUser
+          ? () => { openFriendDm(viewingUser as FriendItem); setViewingUser(null); }
+          : undefined
+        }
+      />
+    )}
+    </>
   );
 }

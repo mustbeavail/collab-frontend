@@ -11,8 +11,15 @@ apiClient.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useAuthStore } = require('@/store/authStore');
-    const token: string | null = useAuthStore.getState().accessToken;
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    const { accessToken, expiresAt, clear } = useAuthStore.getState();
+
+    if (expiresAt !== null && Date.now() > expiresAt) {
+      clear();
+      window.location.href = '/login';
+      return Promise.reject(new Error('Session expired'));
+    }
+
+    if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
