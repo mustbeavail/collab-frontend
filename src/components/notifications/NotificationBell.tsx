@@ -38,6 +38,7 @@ export default function NotificationBell() {
   };
 
   const handleReject = async (friendIdx: number) => {
+    if (!confirm('친구 요청을 거절하시겠습니까?')) return;
     try {
       await friendService.rejectRequest(friendIdx);
       removeRequest(friendIdx);

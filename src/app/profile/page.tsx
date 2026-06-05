@@ -57,6 +57,7 @@ function ProfileContent() {
   };
 
   const handleLogout = async () => {
+    if (!confirm('로그아웃하시겠습니까?')) return;
     try {
       if (refreshToken) await authService.logout(refreshToken);
     } finally {

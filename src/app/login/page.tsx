@@ -32,9 +32,15 @@ export default function LoginPage() {
       });
       router.replace('/');
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? '이메일 또는 비밀번호가 올바르지 않습니다.');
+      const res = (err as { response?: { data?: { message?: string; errorCode?: string } } })?.response?.data;
+      const errorCode = res?.errorCode;
+      const msg = res?.message ?? '로그인에 실패했습니다.';
+      setError(msg);
+      if (errorCode === 'EMAIL_NOT_REGISTERED') {
+        setEmail('');
+      } else if (errorCode === 'INVALID_CREDENTIALS') {
+        setPassword('');
+      }
     } finally {
       setLoading(false);
     }
