@@ -17,6 +17,7 @@ export interface UserProfile {
   email: string;
   nickname: string;
   about?: string;
+  avatarUrl?: string;
   joinAt?: string;
 }
 
@@ -46,6 +47,11 @@ export const userService = {
   getUserPublicProfile: (userId: string) =>
     apiClient
       .get<ApiResponse<UserPublicProfile>>(`/api/users/${userId}`)
+      .then((r) => r.data.data),
+
+  checkNickname: (nickname: string) =>
+    apiClient
+      .get<ApiResponse<{ available: boolean }>>('/api/users/check-nickname', { params: { nickname } })
       .then((r) => r.data.data),
 
   // 프로필 사진 업로드 — POST /api/users/me/avatar (multipart)

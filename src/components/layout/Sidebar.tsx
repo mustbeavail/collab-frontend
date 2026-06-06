@@ -170,6 +170,29 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     }
   };
 
+  const handleLeaveTeam = async (teamIdx: number) => {
+    if (!confirm('팀을 나가면 모든 채팅 내역에 접근할 수 없습니다. 정말 나가시겠습니까?')) return;
+    closeAllMenus();
+    try {
+      await teamService.leaveTeam(teamIdx);
+      removeTeam(teamIdx);
+      setSelectedTeams(prev => { const n = new Set(prev); n.delete(teamIdx); return n; });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '팀 나가기 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleJoinChannel = async (teamIdx: number, roomIdx: number) => {
+    try {
+      const updated = await teamService.joinChannel(teamIdx, roomIdx);
+      updateTeamInStore(updated);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '채널 참여 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleDeleteFriend = async (friendIdx: number) => {
     if (!confirm('정말 친구를 삭제하시겠습니까?')) return;
     try {
@@ -278,6 +301,21 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                           const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
                           const isOpen    = openChatIds.includes(id);
                           const isShaking = shakingChatId === id;
+                          if (!ch.joined) {
+                            return (
+                              <div key={ch.roomIdx} className={styles.channelRow}>
+                                <button
+                                  className={[styles.channelItem, styles.channelItemLocked].join(' ')}
+                                  onClick={() => handleJoinChannel(team.teamIdx, ch.roomIdx)}
+                                  title="클릭하여 채널 참여"
+                                >
+                                  <span className={styles.channelHash}>#</span>
+                                  <span>{ch.roomName}</span>
+                                  <span className={styles.joinBadge}>참여</span>
+                                </button>
+                              </div>
+                            );
+                          }
                           return (
                             <div key={ch.roomIdx} className={styles.channelRow}>
                               <button
@@ -370,7 +408,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
           {!collapsedSections.has('channels') && (
             <div className={styles.itemList}>
               {teams.flatMap(team =>
-                team.channels.map(ch => {
+                team.channels.filter(ch => ch.joined).map(ch => {
                   const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
                   const isOpen    = openChatIds.includes(id);
                   const isShaking = shakingChatId === id;
@@ -504,14 +542,22 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       {/* 푸터 */}
       <div className={styles.footer}>
         <div className={styles.userCard}>
-          <div className={styles.myAvatarWrap}>
-            <div className={styles.myAvatar}>{user?.nickname?.[0] ?? '?'}</div>
-            <div className={styles.myOnlineDot} />
-          </div>
-          <div className={styles.userInfo}>
-            <p className={styles.userName}>{user?.nickname ?? '알 수 없음'}</p>
-            <p className={styles.userStatus}>{user?.email ?? ''}</p>
-          </div>
+          <button
+            type="button"
+            className={styles.myInfoBtn}
+            onClick={() => {
+              if (user) setViewingUser({ userId: user.userId, nickname: user.nickname, email: user.email });
+            }}
+          >
+            <div className={styles.myAvatarWrap}>
+              <div className={styles.myAvatar}>{user?.nickname?.[0] ?? '?'}</div>
+              <div className={styles.myOnlineDot} />
+            </div>
+            <div className={styles.userInfo}>
+              <p className={styles.userName}>{user?.nickname ?? '알 수 없음'}</p>
+              <p className={styles.userStatus}>{user?.email ?? ''}</p>
+            </div>
+          </button>
           <Link href="/profile" className={styles.settingsLink}>
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -607,13 +653,19 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                 </button>
               </>
             )}
-            {!canEdit && !canDelete && (
-              <button className={`${styles.menuItem} ${styles.menuItemDanger}`}>
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                팀 나가기
-              </button>
+            {!canDelete && (
+              <>
+                <div className={styles.menuDivider} />
+                <button
+                  className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                  onClick={() => handleLeaveTeam(menuTeam.teamIdx)}
+                >
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  팀 나가기
+                </button>
+              </>
             )}
           </div>
         );

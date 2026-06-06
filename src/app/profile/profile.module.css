@@ -56,6 +56,13 @@
   font-weight: 700;
 }
 
+.avatarImg {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .avatarEditBtn {
   position: absolute;
   bottom: -4px;
@@ -192,4 +199,41 @@
 
 .dangerBtn:hover {
   background-color: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.nicknameRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.nicknameRow .input {
+  flex: 1;
+}
+
+.checkBtn {
+  flex-shrink: 0;
+  background-color: var(--accent-dim);
+  color: var(--accent-light);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.checkBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.checkBtn:not(:disabled):hover { opacity: 0.8; }
+
+.nickMsg {
+  font-size: 0.75rem;
+  margin-top: 6px;
 }

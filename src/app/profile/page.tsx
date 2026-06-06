@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
@@ -9,24 +9,91 @@ import { userService } from '@/services/user';
 import AuthGuard from '@/components/auth/AuthGuard';
 import styles from './profile.module.css';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
 function ProfileContent() {
   const router = useRouter();
   const { user, refreshToken, updateUser, clear } = useAuthStore();
 
   const [nickname, setNickname] = useState(user?.nickname ?? '');
+  const [originalNickname, setOriginalNickname] = useState(user?.nickname ?? '');
   const [about, setAbout] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPwConfirm, setNewPwConfirm] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [nickChecked, setNickChecked] = useState<'idle' | 'ok' | 'dup'>('idle');
+  const [nickCheckMsg, setNickCheckMsg] = useState('');
+  const [nickChecking, setNickChecking] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    userService.getProfile().then((profile) => {
+      setAbout(profile.about ?? '');
+      setAvatarUrl(profile.avatarUrl ?? null);
+      setNickname(profile.nickname);
+      setOriginalNickname(profile.nickname);
+    });
+  }, []);
+
+  const isNickChanged = nickname.trim() !== originalNickname;
+
+  const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNickname(e.target.value);
+    setNickChecked('idle');
+    setNickCheckMsg('');
+  };
+
+  const handleCheckNick = async () => {
+    if (!nickname.trim()) return;
+    setNickChecking(true);
+    setNickCheckMsg('');
+    try {
+      const result = await userService.checkNickname(nickname.trim());
+      if (result.available) {
+        setNickChecked('ok');
+        setNickCheckMsg('사용 가능한 닉네임입니다.');
+      } else {
+        setNickChecked('dup');
+        setNickCheckMsg('이미 사용 중인 닉네임입니다.');
+      }
+    } catch {
+      setNickCheckMsg('확인 중 오류가 발생했습니다.');
+    } finally {
+      setNickChecking(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    setSaveError('');
+    try {
+      const url = await userService.uploadAvatar(file);
+      setAvatarUrl(url);
+    } catch {
+      setSaveError('사진 업로드 중 오류가 발생했습니다.');
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveMsg('');
     setSaveError('');
 
+    if (isNickChanged && nickChecked !== 'ok') {
+      setSaveError('닉네임 중복확인이 필요합니다.');
+      return;
+    }
     if (newPw && newPw !== newPwConfirm) {
       setSaveError('새 비밀번호가 일치하지 않습니다.');
       return;
@@ -38,11 +105,14 @@ function ProfileContent() {
 
     setSaving(true);
     try {
-      await userService.updateProfile({ nickname, about });
+      await userService.updateProfile({ nickname: nickname.trim(), about });
       if (newPw && currentPw) {
         await userService.changePassword({ currentPassword: currentPw, newPassword: newPw });
       }
-      updateUser({ nickname });
+      updateUser({ nickname: nickname.trim() });
+      setOriginalNickname(nickname.trim());
+      setNickChecked('idle');
+      setNickCheckMsg('');
       setSaveMsg('저장되었습니다.');
       setCurrentPw('');
       setNewPw('');
@@ -89,14 +159,38 @@ function ProfileContent() {
         <div className={styles.card}>
           <div className={styles.avatarArea}>
             <div className={styles.avatarWrap}>
-              <div className={styles.avatar}>{user?.nickname?.[0] ?? '?'}</div>
-              <button className={styles.avatarEditBtn} type="button">
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
+              {avatarUrl ? (
+                <img
+                  src={`${API_BASE}${avatarUrl}`}
+                  alt="프로필"
+                  className={styles.avatarImg}
+                />
+              ) : (
+                <div className={styles.avatar}>{user?.nickname?.[0] ?? '?'}</div>
+              )}
+              <button
+                className={styles.avatarEditBtn}
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={avatarUploading}
+              >
+                {avatarUploading ? (
+                  <span style={{ fontSize: '0.625rem' }}>...</span>
+                ) : (
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                )}
               </button>
             </div>
             <p className={styles.avatarHint}>프로필 사진 변경</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleAvatarChange}
+            />
           </div>
 
           <h1 className={styles.title}>회원정보 수정</h1>
@@ -109,14 +203,29 @@ function ProfileContent() {
             </div>
             <div>
               <label className={styles.label}>닉네임</label>
-              <input
-                type="text"
-                className={styles.input}
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                maxLength={20}
-                required
-              />
+              <div className={styles.nicknameRow}>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={nickname}
+                  onChange={handleNicknameChange}
+                  maxLength={20}
+                  required
+                />
+                <button
+                  type="button"
+                  className={styles.checkBtn}
+                  onClick={handleCheckNick}
+                  disabled={!isNickChanged || nickChecking}
+                >
+                  {nickChecking ? '확인 중' : '중복확인'}
+                </button>
+              </div>
+              {nickCheckMsg && (
+                <p className={styles.nickMsg} style={{ color: nickChecked === 'ok' ? 'var(--online)' : 'var(--danger)' }}>
+                  {nickCheckMsg}
+                </p>
+              )}
             </div>
             <div>
               <label className={styles.label}>소개</label>

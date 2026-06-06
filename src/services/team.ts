@@ -35,4 +35,10 @@ export const teamService = {
       `/api/teams/${teamIdx}/members/${encodeURIComponent(targetUserId)}/role`,
       { role }
     ).then((r) => r.data.data),
+
+  leaveTeam: (teamIdx: number) =>
+    apiClient.delete(`/api/teams/${teamIdx}/leave`),
+
+  joinChannel: (teamIdx: number, roomIdx: number) =>
+    apiClient.post<ApiResponse<TeamItem>>(`/api/teams/${teamIdx}/channels/${roomIdx}/join`).then((r) => r.data.data),
 };

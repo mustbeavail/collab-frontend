@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 import styles from './UserProfileModal.module.css';
 import { userService } from '@/services/user';
 import type { UserPublicProfile } from '@/types/user';
@@ -53,7 +55,7 @@ export default function UserProfileModal({ user, onClose, onDm }: Props) {
         {profile?.avatarUrl ? (
           <img
             className={styles.avatarImg}
-            src={profile.avatarUrl}
+            src={`${API_BASE}${profile.avatarUrl}`}
             alt={display.nickname}
           />
         ) : (

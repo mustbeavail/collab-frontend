@@ -111,7 +111,6 @@ export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
             <div className={styles.teamAvatar}>{team.teamName[0]}</div>
             <div>
               <p className={styles.teamName}>{team.teamName}</p>
-              <p className={styles.myRoleBadge}>{ROLE_LABEL[team.myRole] ?? team.myRole}</p>
             </div>
           </div>
 

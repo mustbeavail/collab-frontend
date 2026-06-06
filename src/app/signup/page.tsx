@@ -27,6 +27,11 @@ export default function SignupPage() {
   const [codeError, setCodeError]         = useState('');
   const [codeSuccess, setCodeSuccess]     = useState('');
 
+  const [nicknameChecked, setNicknameChecked]   = useState(false);
+  const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
+  const [nicknameChecking, setNicknameChecking] = useState(false);
+  const [nicknameCheckMsg, setNicknameCheckMsg] = useState('');
+
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +43,7 @@ export default function SignupPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
       if (field === 'email') { setCodeSent(false); setEmailVerified(false); setCodeError(''); setCodeSuccess(''); }
+      if (field === 'nickname') { setNicknameChecked(false); setNicknameAvailable(null); setNicknameCheckMsg(''); }
     };
 
   const handleAvatarClick = () => fileInputRef.current?.click();
@@ -57,6 +63,8 @@ export default function SignupPage() {
     if (!form.email) { setCodeError('이메일을 입력해주세요.'); return; }
     setCodeError(''); setCodeSuccess(''); setCodeSending(true);
     try {
+      // 이메일 중복체크 먼저 수행
+      await authService.checkEmail(form.email);
       await authService.sendEmailCode(form.email);
       setCodeSent(true);
       setCodeSuccess('인증코드를 발송했습니다. 이메일을 확인해주세요.');
@@ -83,6 +91,24 @@ export default function SignupPage() {
     }
   };
 
+  const handleCheckNickname = async () => {
+    if (!form.nickname) { setNicknameCheckMsg('닉네임을 입력해주세요.'); return; }
+    setNicknameCheckMsg(''); setNicknameChecking(true);
+    try {
+      await authService.checkNickname(form.nickname);
+      setNicknameChecked(true);
+      setNicknameAvailable(true);
+      setNicknameCheckMsg('사용 가능한 닉네임입니다.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setNicknameChecked(true);
+      setNicknameAvailable(false);
+      setNicknameCheckMsg(msg ?? '이미 사용 중인 닉네임입니다.');
+    } finally {
+      setNicknameChecking(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -91,6 +117,8 @@ export default function SignupPage() {
     if (form.password !== form.passwordConfirm) { setError('비밀번호가 일치하지 않습니다.'); return; }
     if (form.password.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return; }
     if (form.nickname.length > 20) { setError('닉네임은 20자 이하여야 합니다.'); return; }
+    if (!nicknameChecked) { setError('닉네임 중복확인을 해주세요.'); return; }
+    if (nicknameAvailable === false) { setError('사용할 수 없는 닉네임입니다.'); return; }
 
     setLoading(true);
     try {
@@ -98,6 +126,7 @@ export default function SignupPage() {
         email: form.email,
         password: form.password,
         nickname: form.nickname,
+        about: form.about || undefined,
       });
       setAuth(data.accessToken, data.refreshToken, {
         userId: data.userId,
@@ -183,7 +212,7 @@ export default function SignupPage() {
                     onClick={handleSendCode}
                     disabled={codeSending}
                   >
-                    {codeSending ? '발송 중...' : codeSent ? '재발송' : '인증코드 발송'}
+                    {codeSending ? '확인 중...' : codeSent ? '재발송' : '인증코드 발송'}
                   </button>
                 )}
                 {emailVerified && (
@@ -253,14 +282,30 @@ export default function SignupPage() {
             </div>
             <div>
               <label className={styles.label}>닉네임</label>
-              <input
-                type="text"
-                placeholder="표시될 이름 (최대 20자)"
-                className={styles.input}
-                value={form.nickname}
-                onChange={setField('nickname')}
-                required
-              />
+              <div className={styles.emailRow}>
+                <input
+                  type="text"
+                  placeholder="표시될 이름 (최대 20자)"
+                  className={`${styles.input} ${nicknameAvailable === true ? styles.inputVerified : ''}`}
+                  value={form.nickname}
+                  onChange={setField('nickname')}
+                  required
+                />
+                <button
+                  type="button"
+                  className={styles.codeBtn}
+                  onClick={handleCheckNickname}
+                  disabled={nicknameChecking || !form.nickname}
+                >
+                  {nicknameChecking ? '확인 중...' : nicknameAvailable === true ? '확인 완료' : '중복확인'}
+                </button>
+              </div>
+              {nicknameCheckMsg && (
+                <p className={nicknameAvailable === true ? styles.successMsg : styles.errorMsg}
+                   style={{ marginTop: '6px' }}>
+                  {nicknameCheckMsg}
+                </p>
+              )}
             </div>
             <div>
               <label className={styles.label}>소개 (선택)</label>

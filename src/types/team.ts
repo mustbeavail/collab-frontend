@@ -1,6 +1,7 @@
 export interface TeamChannel {
   roomIdx: number;
   roomName: string;
+  joined: boolean;
 }
 
 export interface TeamMemberItem {

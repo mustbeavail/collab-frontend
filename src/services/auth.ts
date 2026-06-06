@@ -27,4 +27,12 @@ export const authService = {
   // 이메일 인증코드 확인 — POST /api/auth/email/verify-code
   verifyEmailCode: (email: string, code: string) =>
     apiClient.post<ApiResponse<null>>('/api/auth/email/verify-code', { email, code }),
+
+  // 이메일 중복 확인 — GET /api/auth/check-email
+  checkEmail: (email: string) =>
+    apiClient.get<ApiResponse<null>>('/api/auth/check-email', { params: { email } }),
+
+  // 닉네임 중복 확인 — GET /api/auth/check-nickname
+  checkNickname: (nickname: string) =>
+    apiClient.get<ApiResponse<null>>('/api/auth/check-nickname', { params: { nickname } }),
 };
