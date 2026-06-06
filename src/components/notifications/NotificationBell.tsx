@@ -15,13 +15,17 @@ export default function NotificationBell() {
   const [readCount, setReadCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { pendingRequests, removeRequest, teamInvitations, setTeamInvitations, removeTeamInvitation } =
+  const { pendingRequests, setPendingRequests, removeRequest, teamInvitations, setTeamInvitations, removeTeamInvitation } =
     useNotificationStore();
   const addFriend = useFriendStore((s) => s.addFriend);
   const addTeam = useTeamStore((s) => s.addTeam);
 
   const totalCount = pendingRequests.length + teamInvitations.length;
   const unreadBadge = Math.max(0, totalCount - readCount);
+
+  useEffect(() => {
+    friendService.getPendingRequests().then(setPendingRequests).catch(() => {});
+  }, [setPendingRequests]);
 
   useEffect(() => {
     teamService.getMyInvitations().then(setTeamInvitations).catch(() => {});

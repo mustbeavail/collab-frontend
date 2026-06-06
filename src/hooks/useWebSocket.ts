@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStompClient } from '@/providers/StompProvider';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/store/authStore';
+import { useFriendStore } from '@/store/friendStore';
 import type { FriendItem } from '@/types/friend';
 
 interface NotificationPayload extends FriendItem {
@@ -15,6 +16,8 @@ export function useWebSocket() {
   const client = useStompClient();
   const addRequest = useNotificationStore((s) => s.addRequest);
   const clear = useAuthStore((s) => s.clear);
+  const setUserOnline = useFriendStore((s) => s.setUserOnline);
+  const setUserOffline = useFriendStore((s) => s.setUserOffline);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,6 +34,9 @@ export function useWebSocket() {
             email: payload.email,
             status: payload.status,
           });
+        } else if (payload.type === 'USER_STATUS') {
+          if (payload.status === 'ONLINE') setUserOnline(payload.userId);
+          else setUserOffline(payload.userId);
         }
       } catch { /* 파싱 실패 무시 */ }
     });
@@ -49,5 +55,5 @@ export function useWebSocket() {
       notifSub.unsubscribe();
       sessionSub.unsubscribe();
     };
-  }, [client, addRequest, clear, router]);
+  }, [client, addRequest, clear, setUserOnline, setUserOffline, router]);
 }

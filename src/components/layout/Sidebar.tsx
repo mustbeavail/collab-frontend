@@ -29,7 +29,7 @@ interface Props {
 
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
   const user = useAuthStore((s) => s.user);
-  const { friends, loading: friendsLoading, setFriends, removeFriend, setLoading: setFriendsLoading } = useFriendStore();
+  const { friends, onlineUsers, loading: friendsLoading, setFriends, removeFriend, setOnlineUsers, setLoading: setFriendsLoading } = useFriendStore();
   const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading, addTeam, updateTeamInStore, removeTeam } = useTeamStore();
 
   const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set<number>());
@@ -58,10 +58,19 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   useEffect(() => {
     setFriendsLoading(true);
     friendService.getFriends()
-      .then(setFriends)
+      .then((list) => {
+        setFriends(list);
+        return friendService.getOnlineStatuses();
+      })
+      .then((statuses) => {
+        const onlineSet = new Set(
+          Object.entries(statuses).filter(([, v]) => v).map(([k]) => k)
+        );
+        setOnlineUsers(onlineSet);
+      })
       .catch(() => setFriends([]))
       .finally(() => setFriendsLoading(false));
-  }, [setFriends, setFriendsLoading]);
+  }, [setFriends, setOnlineUsers, setFriendsLoading]);
 
   useEffect(() => {
     setTeamsLoading(true);
@@ -524,7 +533,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                   >
                     <div className={styles.avatarWrap}>
                       <div className={styles.friendAvatar}>{f.nickname[0]}</div>
-                      <div className={`${styles.statusDot} ${styles.offline}`} />
+                      <div className={`${styles.statusDot} ${onlineUsers.has(f.userId) ? styles.online : styles.offline}`} />
                     </div>
                     <span className={styles.friendName}>{f.nickname}</span>
                     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.friendMenuIcon}>

@@ -14,11 +14,19 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   const [unreadCount, setUnreadCount] = useState(0);
   const initialLoad = useRef(true);
   const activeRef = useRef(active);
+  const seenIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     activeRef.current = active;
     if (active) setUnreadCount(0);
   }, [active]);
+
+  // 브라우저 알림 권한 요청 — 방 진입 시 1회
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [roomIdx]);
 
   // 초기 로드
   useEffect(() => {
@@ -27,8 +35,10 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     setLoading(true);
     setMessages([]);
     setHasMore(false);
+    seenIds.current = new Set();
     chatService.getMessages(roomIdx)
       .then(({ messages: msgs, hasMore: more }) => {
+        msgs.forEach(m => seenIds.current.add(m.msgIdx));
         setMessages(msgs);
         setHasMore(more);
       })
@@ -43,20 +53,21 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     const sub = client.subscribe(`/topic/room/${roomIdx}`, (frame) => {
       try {
         const msg: ChatMessage = JSON.parse(frame.body);
+
+        // 중복 메시지 dedup
+        if (seenIds.current.has(msg.msgIdx)) return;
+        seenIds.current.add(msg.msgIdx);
+
         setMessages((prev) => [...prev, msg]);
 
         if (!activeRef.current) {
           setUnreadCount((prev) => prev + 1);
         }
-        if (document.hidden && typeof window !== 'undefined' && 'Notification' in window) {
-          Notification.requestPermission().then((perm) => {
-            if (perm === 'granted') {
-              new Notification(`새 메시지 — ${msg.nickname}`, {
-                body: msg.content,
-                icon: msg.avatarUrl ?? undefined,
-                tag: `chat-${roomIdx}`,
-              });
-            }
+        if (document.hidden && Notification.permission === 'granted') {
+          new Notification(`새 메시지 — ${msg.nickname}`, {
+            body: msg.content,
+            icon: msg.avatarUrl ?? undefined,
+            tag: `chat-${roomIdx}`,
           });
         }
       } catch { /* 파싱 실패 무시 */ }
@@ -74,7 +85,9 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     setLoadingMore(true);
     try {
       const { messages: older, hasMore: more } = await chatService.getMessages(roomIdx, oldestMsgIdx);
-      setMessages((prev) => [...older, ...prev]);
+      const newOlder = older.filter(m => !seenIds.current.has(m.msgIdx));
+      newOlder.forEach(m => seenIds.current.add(m.msgIdx));
+      setMessages((prev) => [...newOlder, ...prev]);
       setHasMore(more);
     } catch { /* 요청 실패 무시 */ }
     finally { setLoadingMore(false); }

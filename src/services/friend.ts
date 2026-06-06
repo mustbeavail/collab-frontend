@@ -9,6 +9,9 @@ export const friendService = {
   getPendingRequests: () =>
     apiClient.get<ApiResponse<FriendItem[]>>('/api/friends/requests').then((r) => r.data.data),
 
+  getOnlineStatuses: () =>
+    apiClient.get<ApiResponse<Record<string, boolean>>>('/api/friends/online-status').then((r) => r.data.data),
+
   sendRequest: (targetUserId: string) =>
     apiClient.post<ApiResponse<null>>('/api/friends/request', { targetUserId }),
 

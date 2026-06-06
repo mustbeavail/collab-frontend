@@ -128,7 +128,7 @@ export default function SignupPage() {
         nickname: form.nickname,
         about: form.about || undefined,
       });
-      setAuth(data.accessToken, data.refreshToken, {
+      setAuth(data.accessToken, {
         userId: data.userId,
         nickname: data.nickname,
         email: data.email,

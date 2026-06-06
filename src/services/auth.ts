@@ -12,12 +12,12 @@ export const authService = {
       .post<ApiResponse<AuthResponse>>('/api/auth/signup', body)
       .then((r) => r.data.data),
 
-  logout: (refreshToken: string) =>
-    apiClient.post('/api/auth/logout', { refreshToken }),
+  logout: () =>
+    apiClient.post('/api/auth/logout'),
 
-  refresh: (refreshToken: string) =>
+  refresh: () =>
     apiClient
-      .post<ApiResponse<AuthResponse>>('/api/auth/refresh', { refreshToken })
+      .post<ApiResponse<AuthResponse>>('/api/auth/refresh')
       .then((r) => r.data.data),
 
   // 이메일 인증코드 발송 — POST /api/auth/email/send-code

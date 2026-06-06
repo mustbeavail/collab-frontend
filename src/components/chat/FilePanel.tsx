@@ -30,15 +30,13 @@ const getExt   = (name: string) => name.split('.').pop()?.toLowerCase() ?? '';
 const getColor = (name: string) => EXT_COLORS[getExt(name)] ?? '#94a3b8';
 
 export default function FilePanel({ onClose }: { onClose: () => void }) {
-  const [files, setFiles] = useState<SharedFile[]>(INITIAL_FILES);
-
-  const deleteFile = (id: string) => setFiles(prev => prev.filter(f => f.id !== id));
+  const [files] = useState<SharedFile[]>(INITIAL_FILES);
 
   return (
     <div className={styles.panel}>
       {/* 헤더 */}
       <div className={styles.header}>
-        <span className={styles.title}>파일</span>
+        <span className={styles.title}>파일 <span style={{fontSize:'10px',background:'#f59e0b',color:'#fff',borderRadius:'4px',padding:'1px 5px',verticalAlign:'middle'}}>준비 중</span></span>
         <button className={styles.closeBtn} onClick={onClose}>
           <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -48,7 +46,7 @@ export default function FilePanel({ onClose }: { onClose: () => void }) {
 
       {/* 업로드 버튼 */}
       <div className={styles.uploadArea}>
-        <button className={styles.uploadBtn}>
+        <button className={styles.uploadBtn} disabled title="준비 중인 기능입니다">
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
@@ -74,12 +72,12 @@ export default function FilePanel({ onClose }: { onClose: () => void }) {
                 <span className={styles.fileMeta}>{f.sharedBy} · {f.date} · {f.size}</span>
               </div>
               <div className={styles.fileActions}>
-                <button className={styles.actionBtn} title="다운로드">
+                <button className={styles.actionBtn} disabled title="준비 중인 기능입니다">
                   <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                 </button>
-                <button className={`${styles.actionBtn} ${styles.deleteBtn}`} title="삭제" onClick={() => deleteFile(f.id)}>
+                <button className={`${styles.actionBtn} ${styles.deleteBtn}`} disabled title="준비 중인 기능입니다">
                   <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>

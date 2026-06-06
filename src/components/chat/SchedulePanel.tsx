@@ -161,7 +161,7 @@ export default function SchedulePanel({ onClose }: { onClose: () => void }) {
     <div className={styles.panel}>
       {/* ── 헤더 ── */}
       <div className={styles.panelHeader}>
-        <span className={styles.panelTitle}>일정</span>
+        <span className={styles.panelTitle}>일정 <span style={{fontSize:'10px',background:'#f59e0b',color:'#fff',borderRadius:'4px',padding:'1px 5px',verticalAlign:'middle'}}>준비 중</span></span>
         <button className={styles.panelCloseBtn} onClick={onClose}>
           <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />

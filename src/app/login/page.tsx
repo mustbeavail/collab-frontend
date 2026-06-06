@@ -25,7 +25,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const data = await authService.login({ email, password });
-      setAuth(data.accessToken, data.refreshToken, {
+      setAuth(data.accessToken, {
         userId: data.userId,
         nickname: data.nickname,
         email: data.email,

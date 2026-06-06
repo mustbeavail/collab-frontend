@@ -13,7 +13,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 function ProfileContent() {
   const router = useRouter();
-  const { user, refreshToken, updateUser, clear } = useAuthStore();
+  const { user, updateUser, clear } = useAuthStore();
 
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [originalNickname, setOriginalNickname] = useState(user?.nickname ?? '');
@@ -129,7 +129,7 @@ function ProfileContent() {
   const handleLogout = async () => {
     if (!confirm('로그아웃하시겠습니까?')) return;
     try {
-      if (refreshToken) await authService.logout(refreshToken);
+      await authService.logout();
     } finally {
       clear();
       router.replace('/login');
