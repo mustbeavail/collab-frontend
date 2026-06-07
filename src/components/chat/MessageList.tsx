@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import styles from './MessageList.module.css';
-import type { ChatMessage } from '@/types/chat';
+import type { ChatMessage, FileMessageContent } from '@/types/chat';
+import { fileService } from '@/services/file';
 
 interface Props {
   messages: ChatMessage[];
@@ -23,6 +24,37 @@ function formatTime(isoStr: string): string {
 
 function avatarText(nickname: string): string {
   return nickname?.charAt(0) ?? '?';
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileMessageBubble({ content }: { content: string }) {
+  let parsed: FileMessageContent | null = null;
+  try { parsed = JSON.parse(content); } catch { return <p style={{ color: '#ef4444' }}>파일 정보를 불러올 수 없습니다.</p>; }
+  if (!parsed) return null;
+  const { fileIdx, oriFilename, fileSize } = parsed;
+  return (
+    <a
+      href={fileService.getDownloadUrl(fileIdx)}
+      download={oriFilename}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '8px',
+        padding: '8px 12px', borderRadius: '8px',
+        background: 'var(--bg-secondary, #f1f5f9)', textDecoration: 'none', color: 'inherit',
+        border: '1px solid var(--border, #e2e8f0)',
+      }}
+    >
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      <span style={{ fontSize: '13px', fontWeight: 500 }}>{oriFilename}</span>
+      <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>{formatFileSize(fileSize)}</span>
+    </a>
+  );
 }
 
 export default function MessageList({ messages, loading, loadingMore, hasMore, onLoadMore, currentUserId, initialLoad }: Props) {
@@ -105,7 +137,10 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                 <span className={styles.time}>{formatTime(msg.sentAt)}</span>
               </div>
             )}
-            <p className={styles.content}>{msg.content}</p>
+            {msg.msgType === 'FILE'
+              ? <FileMessageBubble content={msg.content} />
+              : <p className={styles.content}>{msg.content}</p>
+            }
             {msg.userId === currentUserId && (
               <span className={`${styles.time} ${styles.mineTime}`}>{formatTime(msg.sentAt)}</span>
             )}

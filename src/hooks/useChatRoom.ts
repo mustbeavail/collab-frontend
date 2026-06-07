@@ -101,5 +101,14 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     });
   }, [client, roomIdx]);
 
-  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, initialLoad, unreadCount };
+  const sendFileMessage = useCallback((fileIdx: number, oriFilename: string, fileSize: number, fileExtension: string) => {
+    if (!client || !roomIdx) return;
+    const content = JSON.stringify({ fileIdx, oriFilename, fileSize, fileExtension });
+    client.publish({
+      destination: `/app/chat.send/${roomIdx}`,
+      body: JSON.stringify({ content, msgType: 'FILE' }),
+    });
+  }, [client, roomIdx]);
+
+  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, initialLoad, unreadCount };
 }

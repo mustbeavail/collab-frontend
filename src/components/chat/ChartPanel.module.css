@@ -1,0 +1,228 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+  font-family: inherit;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.closeBtn:hover { background: #f3f4f6; color: #111827; }
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 공유 배너 */
+.sharedBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #1e40af;
+  flex-shrink: 0;
+}
+.sharedNick { font-weight: 600; }
+.sharedViewBtn {
+  margin-left: auto;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.sharedViewBtn:hover { background: #2563eb; }
+.sharedDismissBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #60a5fa;
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+/* 업로드 뷰 */
+.uploadView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.fileLabel { cursor: pointer; display: block; }
+.fileInput { display: none; }
+
+.fileDropzone {
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 28px 16px;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+  background: #f9fafb;
+}
+.fileLabel:hover .fileDropzone {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
+.uploadIcon {
+  width: 36px;
+  height: 36px;
+  color: #9ca3af;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+.dropText {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  margin: 0 0 4px;
+  word-break: break-all;
+}
+.dropSub { font-size: 12px; color: #9ca3af; margin: 0; }
+
+/* 미리보기 */
+.preview {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+}
+.previewTitle { font-size: 12px; color: #6b7280; margin: 0 0 6px; font-weight: 500; }
+.tableWrap { overflow-x: auto; }
+.previewTable { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.td { border: 1px solid #e5e7eb; padding: 3px 8px; color: #374151; }
+.previewMore { font-size: 12px; color: #9ca3af; margin: 6px 0 0; }
+
+.questionInput {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #111827;
+  outline: none;
+  box-sizing: border-box;
+}
+.questionInput:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+
+.analyzeBtn {
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+.analyzeBtn:hover { background: #4f46e5; }
+
+.error { font-size: 13px; color: #ef4444; text-align: center; margin: 0; }
+
+/* 로딩 뷰 */
+.loadingView {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loadingText { font-size: 14px; color: #6b7280; }
+
+/* 결과 뷰 */
+.resultView {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 12px;
+}
+
+.chartWrap {
+  flex: 1;
+  min-height: 260px;
+  position: relative;
+}
+
+.resultActions {
+  display: flex;
+  gap: 8px;
+}
+
+.shareBtn {
+  flex: 1;
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.shareBtn:hover { background: #4f46e5; }
+
+.resetBtn {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.resetBtn:hover { background: #e5e7eb; }

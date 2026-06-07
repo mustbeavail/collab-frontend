@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import styles from './MessageInput.module.css';
+import { fileService } from '@/services/file';
 
 interface Props {
   channelName: string;
@@ -10,11 +11,14 @@ interface Props {
   micMuted?: boolean;
   onMicToggle?: () => void;
   onSend?: (content: string) => void;
+  onFileUpload?: (fileIdx: number, oriFilename: string, fileSize: number, fileExtension: string) => void;
+  roomIdx?: number | null;
 }
 
-export default function MessageInput({ channelName, isDm = false, showMicToggle = false, micMuted = false, onMicToggle, onSend }: Props) {
+export default function MessageInput({ channelName, isDm = false, showMicToggle = false, micMuted = false, onMicToggle, onSend, onFileUpload, roomIdx }: Props) {
   const [value, setValue] = useState('');
   const [attachOpen, setAttachOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const handleSend = () => {
     const trimmed = value.trim();
@@ -55,12 +59,13 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
             <div className={styles.attachMenu}>
               <button
                 className={styles.attachOption}
+                disabled={uploading}
                 onClick={() => { fileInputRef.current?.click(); setAttachOpen(false); }}
               >
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
-                <span className={styles.attachOptionText}>일반 파일 첨부</span>
+                <span className={styles.attachOptionText}>{uploading ? '업로드 중...' : '일반 파일 첨부'}</span>
               </button>
               <div className={styles.attachDivider} />
               <button
@@ -78,7 +83,25 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
             </div>
           )}
 
-          <input ref={fileInputRef} type="file" style={{ display: 'none' }} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file || !roomIdx || !onFileUpload) return;
+              e.target.value = '';
+              setUploading(true);
+              try {
+                const uploaded = await fileService.upload(roomIdx, file);
+                onFileUpload(uploaded.fileIdx, uploaded.oriFilename, uploaded.fileSize, uploaded.fileExtension);
+              } catch {
+                alert('파일 업로드에 실패했습니다.');
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
         </div>
 
         <textarea

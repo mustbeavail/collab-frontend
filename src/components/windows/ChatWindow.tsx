@@ -7,16 +7,72 @@ import SchedulePanel from '@/components/chat/SchedulePanel';
 import FilePanel from '@/components/chat/FilePanel';
 import MinutesPanel from '@/components/chat/MinutesPanel';
 import DrawPanel from '@/components/chat/DrawPanel';
+import ChartPanel from '@/components/chat/ChartPanel';
 import styles from './ChatWindow.module.css';
 import type { ChatWindowState } from '@/app/page';
 import { useChatRoom } from '@/hooks/useChatRoom';
+import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
 import { useAuthStore } from '@/store/authStore';
 import { userService } from '@/services/user';
+import { searchService, type RoomSearchResult } from '@/services/search';
 import type { ChatRoomDetail, RoomMember } from '@/types/chat';
 
 const MIN_WIDTH  = 760;
 const MIN_HEIGHT = 400;
+
+// ── 원격 오디오 트랙 컴포넌트 ────────────────────────────────────────────
+function AudioTrack({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream;
+  }, [stream]);
+  return <audio ref={ref} autoPlay />;
+}
+
+// ── 원격 비디오 타일 컴포넌트 ────────────────────────────────────────────
+function RemoteVideoTile({ stream, nickname, speaking, micOn }: {
+  stream: MediaStream | undefined;
+  nickname: string;
+  speaking: boolean;
+  micOn: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream ?? null;
+  }, [stream]);
+
+  return (
+    <div className={styles.videoCell}>
+      <div className={`${styles.videoCam} ${speaking ? styles.videoSpeaking : ''}`}>
+        {stream
+          ? <video ref={ref} autoPlay playsInline className={styles.videoCamVideo} />
+          : <div className={styles.videoCamInitial}>{nickname[0]?.toUpperCase()}</div>
+        }
+      </div>
+      <span className={styles.videoName}>{nickname}</span>
+      <MicIcon on={micOn} size={11} />
+    </div>
+  );
+}
+
+// ── 마이크 아이콘 헬퍼 ──────────────────────────────────────────────────
+function MicIcon({ on, size = 11 }: { on: boolean; size?: number }) {
+  return on ? (
+    <svg width={size} height={size} fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      className={styles.micOnColor}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+    </svg>
+  ) : (
+    <svg width={size} height={size} fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      className={styles.micOffColor}>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3" />
+      <path strokeLinecap="round" strokeWidth={2} d="M3 3l18 18" />
+    </svg>
+  );
+}
 
 interface Props {
   win: ChatWindowState;
@@ -34,13 +90,17 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const [searchOpen, setSearchOpen]   = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState('all');
+  const [searchResults, setSearchResults] = useState<RoomSearchResult | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
+
   const [voiceChatActive, setVoiceChatActive] = useState(false);
   const [videoChatActive, setVideoChatActive] = useState(false);
-  const [micMuted, setMicMuted] = useState(false);
   const [confirmModal, setConfirmModal] = useState<'voice' | 'video' | 'to-voice' | 'to-video' | null>(null);
   const [prevWinState, setPrevWinState] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
@@ -61,8 +121,31 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const [editDesc, setEditDesc] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const currentUserId = useAuthStore((s) => s.user?.userId);
+  const currentUserId   = useAuthStore((s) => s.user?.userId);
+  const currentNickname = useAuthStore((s) => s.user?.nickname ?? '');
   const [roomIdx, setRoomIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchQuery.trim() || !roomIdx) { setSearchResults(null); return; }
+    searchTimerRef.current = setTimeout(() => {
+      setSearchLoading(true);
+      searchService.roomSearch(roomIdx, searchQuery.trim())
+        .then(setSearchResults)
+        .catch(() => setSearchResults(null))
+        .finally(() => setSearchLoading(false));
+    }, 400);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery, roomIdx]);
+
+  const webrtcActive = voiceChatActive || videoChatActive;
+  const webrtc = useWebRTC({
+    roomIdx,
+    currentUserId: currentUserId ?? '',
+    currentNickname,
+    sessionType: videoChatActive ? 'VIDEO' : 'VOICE',
+    active: webrtcActive,
+  });
 
   useEffect(() => {
     const { id, type, targetUserId } = win.chat;
@@ -77,7 +160,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     }
   }, [win.chat]);
 
-  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, initialLoad, unreadCount } =
+  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, initialLoad, unreadCount } =
     useChatRoom(roomIdx, !win.minimized);
 
   // 미읽음 카운트를 부모로 전달
@@ -185,7 +268,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     }
   };
 
-  const [activePanel, setActivePanel] = useState<'schedule' | 'file' | 'minutes' | 'draw' | null>(null);
+  const [activePanel, setActivePanel] = useState<'schedule' | 'file' | 'minutes' | 'draw' | 'chart' | null>(null);
   const minSizeRef = useRef({ w: MIN_WIDTH, h: MIN_HEIGHT });
 
   const expandToHalf = () => {
@@ -205,7 +288,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     }
   }, [activePanel, videoChatActive]);
 
-  const openPanel = (panel: 'schedule' | 'file' | 'minutes' | 'draw') => {
+  const openPanel = (panel: 'schedule' | 'file' | 'minutes' | 'draw' | 'chart') => {
     if (activePanel === panel) { setActivePanel(null); return; }
     if (panel === 'schedule') {
       expandToHalf();
@@ -215,13 +298,9 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     setActivePanel(panel);
   };
 
-  const memberMicOn = (idx: number) => idx % 3 !== 1;
-  const memberSpeaking = (idx: number) => idx === 0;
-
   const handleVoiceClick = () => {
     if (voiceChatActive) {
       setVoiceChatActive(false);
-      setMicMuted(false);
     } else if (videoChatActive) {
       setConfirmModal('to-voice');
     } else {
@@ -232,7 +311,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const handleVideoClick = () => {
     if (videoChatActive) {
       setVideoChatActive(false);
-      setMicMuted(false);
     } else if (voiceChatActive) {
       setConfirmModal('to-video');
     } else {
@@ -249,7 +327,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
       setVoiceChatActive(false);
       expandToHalf();
     }
-    setMicMuted(false);
     setConfirmModal(null);
   };
 
@@ -432,6 +509,15 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
           </button>
+          <button
+            className={`${styles.actionBtn} ${activePanel === 'chart' ? styles.actionBtnChartActive : ''}`}
+            title="엑셀 데이터 시각화"
+            onClick={() => openPanel('chart')}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </button>
           <div className={styles.divider} />
 
           <button
@@ -479,6 +565,74 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         </div>
       </div>
 
+      {/* 채팅방 내부 검색 결과 패널 */}
+      {searchOpen && searchQuery.trim() && (
+        <div className={styles.searchResultPanel}>
+          {searchLoading && <div className={styles.searchResultHint}>검색 중...</div>}
+          {!searchLoading && searchResults && (() => {
+            const filtered = {
+              messages:  searchScope === 'all' || searchScope === 'chat'     ? searchResults.messages  : [],
+              files:     searchScope === 'all' || searchScope === 'file'     ? searchResults.files     : [],
+              schedules: searchScope === 'all' || searchScope === 'schedule' ? searchResults.schedules : [],
+              notes:     searchScope === 'all' || searchScope === 'minutes'  ? searchResults.notes     : [],
+            };
+            const total = filtered.messages.length + filtered.files.length + filtered.schedules.length + filtered.notes.length;
+            if (total === 0) return <div className={styles.searchResultHint}>검색 결과가 없습니다.</div>;
+            return (
+              <>
+                {filtered.messages.length > 0 && (
+                  <div className={styles.searchSection}>
+                    <div className={styles.searchSectionTitle}>채팅</div>
+                    {filtered.messages.map(m => (
+                      <div key={m.msgIdx} className={styles.searchResultItem}>
+                        <span className={styles.searchResultName}>{m.senderNick}</span>
+                        <span className={styles.searchResultDesc}>{m.content}</span>
+                        {m.sentAt && <span className={styles.searchResultTime}>{m.sentAt.replace('T', ' ')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filtered.files.length > 0 && (
+                  <div className={styles.searchSection}>
+                    <div className={styles.searchSectionTitle}>파일</div>
+                    {filtered.files.map(f => (
+                      <div key={f.fileIdx} className={styles.searchResultItem}>
+                        <span className={styles.searchResultName}>{f.filename}</span>
+                        <span className={styles.searchResultDesc}>{f.uploaderNick}</span>
+                        {f.uploadedAt && <span className={styles.searchResultTime}>{f.uploadedAt.replace('T', ' ')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filtered.schedules.length > 0 && (
+                  <div className={styles.searchSection}>
+                    <div className={styles.searchSectionTitle}>일정</div>
+                    {filtered.schedules.map(s => (
+                      <div key={s.scheduleIdx} className={styles.searchResultItem}>
+                        <span className={styles.searchResultName}>{s.title}</span>
+                        {s.date && <span className={styles.searchResultTime}>{s.date.replace('T', ' ')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filtered.notes.length > 0 && (
+                  <div className={styles.searchSection}>
+                    <div className={styles.searchSectionTitle}>회의록</div>
+                    {filtered.notes.map(n => (
+                      <div key={n.noteIdx} className={styles.searchResultItem}>
+                        <span className={styles.searchResultName}>{n.title}</span>
+                        <span className={styles.searchResultDesc}>{n.creatorNick}</span>
+                        {n.createdAt && <span className={styles.searchResultTime}>{n.createdAt.replace('T', ' ')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
       {/* 콘텐츠 + 사이드 패널 */}
       <div className={styles.contentRow}>
         <div className={styles.chatSection}>
@@ -495,36 +649,49 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
           {/* 음성 채팅 패널 */}
           {voiceChatActive && (
             <div className={styles.voicePanel}>
+              {/* 원격 오디오 요소 (숨김) */}
+              {Array.from(webrtc.remoteStreams.entries()).map(([uid, stream]) => (
+                <AudioTrack key={uid} stream={stream} />
+              ))}
               <div className={styles.voicePanelHeader}>
                 <div className={styles.voicePanelTitle}>
                   <span className={styles.liveDot} />
                   음성 채팅 중
                 </div>
-                <button
-                  className={styles.endCallBtn}
-                  onClick={() => { setVoiceChatActive(false); setMicMuted(false); }}
-                >
-                  종료
-                </button>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    className={`${styles.recordBtn} ${webrtc.isRecording ? styles.recordBtnActive : ''}`}
+                    onClick={webrtc.isRecording ? webrtc.stopRecording : webrtc.startRecording}
+                    title={webrtc.isRecording ? '녹음 중지' : '녹음 시작'}
+                  >
+                    {webrtc.isRecording ? '■ 중지' : '● 녹음'}
+                  </button>
+                  <button className={styles.endCallBtn} onClick={() => setVoiceChatActive(false)}>
+                    종료
+                  </button>
+                </div>
               </div>
+              {webrtc.error && <p className={styles.voiceError}>{webrtc.error}</p>}
               <div className={styles.voiceParticipants}>
-                {roomMembers.map((m, idx) => (
-                  <div key={`voice-${m.userId}`} className={styles.voiceParticipant}>
-                    <div className={`${styles.voiceAvatar} ${memberSpeaking(idx) ? styles.voiceAvatarSpeaking : ''}`}>
-                      {m.nickname[0]}
+                {/* 로컬 사용자 */}
+                <div className={styles.voiceParticipant}>
+                  <div className={`${styles.voiceAvatar} ${webrtc.localSpeaking ? styles.voiceAvatarSpeaking : ''}`}>
+                    {(currentNickname || '?')[0]}
+                  </div>
+                  <span className={styles.voiceName}>{currentNickname} (나)</span>
+                  <div className={styles.voiceMicIcon}>
+                    <MicIcon on={webrtc.localMicOn} />
+                  </div>
+                </div>
+                {/* 원격 참여자 */}
+                {webrtc.participants.map(p => (
+                  <div key={`voice-${p.userId}`} className={styles.voiceParticipant}>
+                    <div className={`${styles.voiceAvatar} ${webrtc.speakingUsers.has(p.userId) ? styles.voiceAvatarSpeaking : ''}`}>
+                      {p.nickname[0]}
                     </div>
-                    <span className={styles.voiceName}>{m.nickname}</span>
-                    <div className={`${styles.voiceMicIcon} ${memberMicOn(idx) ? styles.micOnColor : styles.micOffColor}`}>
-                      {memberMicOn(idx) ? (
-                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                      ) : (
-                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v3" />
-                          <path strokeLinecap="round" strokeWidth={2} d="M3 3l18 18" />
-                        </svg>
-                      )}
+                    <span className={styles.voiceName}>{p.nickname}</span>
+                    <div className={styles.voiceMicIcon}>
+                      <MicIcon on={webrtc.micOnUsers.has(p.userId)} />
                     </div>
                   </div>
                 ))}
@@ -540,21 +707,41 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                   <span className={`${styles.liveDot} ${styles.liveDotBlue}`} />
                   화상 채팅 중
                 </div>
-                <button
-                  className={styles.endCallBtn}
-                  onClick={() => { setVideoChatActive(false); setMicMuted(false); }}
-                >
-                  종료
-                </button>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    className={`${styles.recordBtn} ${webrtc.isRecording ? styles.recordBtnActive : ''}`}
+                    onClick={webrtc.isRecording ? webrtc.stopRecording : webrtc.startRecording}
+                    title={webrtc.isRecording ? '녹화 중지' : '녹화 시작'}
+                  >
+                    {webrtc.isRecording ? '■ 중지' : '● 녹화'}
+                  </button>
+                  <button className={styles.endCallBtn} onClick={() => setVideoChatActive(false)}>
+                    종료
+                  </button>
+                </div>
               </div>
+              {webrtc.error && <p className={styles.voiceError}>{webrtc.error}</p>}
               <div className={styles.videoGrid}>
-                {roomMembers.map(m => (
-                  <div key={`video-${m.userId}`} className={styles.videoCell}>
-                    <div className={styles.videoCam}>
-                      <div className={styles.videoCamInitial}>{m.nickname[0]}</div>
-                    </div>
-                    <span className={styles.videoName}>{m.nickname}</span>
+                {/* 로컬 사용자 */}
+                <div className={styles.videoCell}>
+                  <div className={`${styles.videoCam} ${webrtc.localSpeaking ? styles.videoSpeaking : ''}`}>
+                    {webrtc.localStream
+                      ? <video ref={webrtc.localVideoRef} autoPlay muted playsInline
+                          className={`${styles.videoCamVideo} ${styles.videoCamMirror}`} />
+                      : <div className={styles.videoCamInitial}>{(currentNickname || '?')[0]}</div>
+                    }
                   </div>
+                  <span className={styles.videoName}>{currentNickname} (나)</span>
+                </div>
+                {/* 원격 참여자 */}
+                {webrtc.participants.map(p => (
+                  <RemoteVideoTile
+                    key={`video-${p.userId}`}
+                    stream={webrtc.remoteStreams.get(p.userId)}
+                    nickname={p.nickname}
+                    speaking={webrtc.speakingUsers.has(p.userId)}
+                    micOn={webrtc.micOnUsers.has(p.userId)}
+                  />
                 ))}
               </div>
             </div>
@@ -563,10 +750,12 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
           <MessageInput
             channelName={win.chat.name}
             isDm={win.chat.type === 'dm'}
-            showMicToggle={voiceChatActive || videoChatActive}
-            micMuted={micMuted}
-            onMicToggle={() => setMicMuted(v => !v)}
+            showMicToggle={webrtcActive}
+            micMuted={!webrtc.localMicOn}
+            onMicToggle={webrtc.toggleMic}
             onSend={sendMessage}
+            onFileUpload={sendFileMessage}
+            roomIdx={roomIdx}
           />
         </div>
 
@@ -740,10 +929,11 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
           activePanel === 'draw' ? styles.rightPanelOpenDraw :
           activePanel            ? styles.rightPanelOpen     : ''
         }`}>
-          {activePanel === 'schedule' && <SchedulePanel onClose={() => setActivePanel(null)} />}
-          {activePanel === 'file'     && <FilePanel     onClose={() => setActivePanel(null)} />}
-          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} />}
-          {activePanel === 'draw'     && <DrawPanel     onClose={() => setActivePanel(null)} />}
+          {activePanel === 'schedule' && <SchedulePanel onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
+          {activePanel === 'file'     && <FilePanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
+          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
+          {activePanel === 'draw'     && <DrawPanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
+          {activePanel === 'chart'    && <ChartPanel    onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
         </div>
       </div>
 

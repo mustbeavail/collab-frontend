@@ -1,8 +1,10 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import ChatWindow from '@/components/windows/ChatWindow';
 import NotificationBell from '@/components/notifications/NotificationBell';
+import CalendarPopup from '@/components/calendar/CalendarPopup';
+import SearchModal from '@/components/search/SearchModal';
 import styles from './ChatArea.module.css';
 import type { ChatWindowState } from '@/app/page';
 
@@ -15,27 +17,41 @@ interface Props {
   onBringToFront: (windowId: string) => void;
 }
 
+function Clock() {
+  const [time, setTime] = useState(() => {
+    const now = new Date();
+    return now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return <span className={styles.clock}>{time}</span>;
+}
+
 export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimize, onUpdate, onBringToFront }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef     = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   const handleUnreadChange = useCallback((windowId: string, count: number) => {
     setUnreadCounts(prev => ({ ...prev, [windowId]: count }));
   }, []);
 
-  const toggleSearch = () => {
-    setSearchOpen(prev => {
-      if (!prev) setTimeout(() => inputRef.current?.focus(), 50);
-      return !prev;
-    });
-  };
-
   const minimized = windows.filter(w => w.minimized);
 
   return (
     <div className={styles.workspace}>
+      {/* 글로벌 검색 모달 */}
+      {searchOpen && <SearchModal onClose={() => setSearchOpen(false)} />}
+
       {/* 배경 헤더 */}
       <div className={styles.header}>
         <div className={styles.headerLeft}>
@@ -45,24 +61,33 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
           )}
         </div>
         <div className={styles.headerActions}>
-          {/* 검색 인풋 */}
-          <div className={`${styles.searchBox} ${searchOpen ? styles.searchBoxOpen : ''}`}>
-            <input
-              ref={inputRef}
-              className={styles.searchInput}
-              placeholder="채팅방 검색..."
-              onKeyDown={e => e.key === 'Escape' && setSearchOpen(false)}
-            />
-          </div>
+          <Clock />
+
+          {/* 글로벌 검색 버튼 */}
           <button
             className={`${styles.headerBtn} ${searchOpen ? styles.headerBtnActive : ''}`}
-            onClick={toggleSearch}
-            title="검색"
+            onClick={() => setSearchOpen(true)}
+            title="검색 (친구·팀·채팅방)"
           >
             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
+
+          {/* 캘린더 버튼 */}
+          <div ref={calendarRef} className={styles.calendarContainer}>
+            <button
+              className={`${styles.headerBtn} ${calendarOpen ? styles.headerBtnActive : ''}`}
+              onClick={() => setCalendarOpen(v => !v)}
+              title="캘린더 (전체 일정)"
+            >
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </button>
+            {calendarOpen && <CalendarPopup onClose={() => setCalendarOpen(false)} />}
+          </div>
+
           <NotificationBell />
           <button
             className={`${styles.headerBtn} ${styles.closeAllBtn} ${windows.length === 0 ? styles.closeAllBtnDisabled : ''}`}

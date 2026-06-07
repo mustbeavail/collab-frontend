@@ -47,6 +47,21 @@
   gap: 6px;
 }
 
+/* 시계 */
+.clock {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  padding: 0 6px;
+  user-select: none;
+}
+
+/* 캘린더 버튼 컨테이너 (팝업 앵커) */
+.calendarContainer {
+  position: relative;
+}
+
 /* 검색 박스 */
 .searchBox {
   display: flex;

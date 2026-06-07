@@ -8,7 +8,12 @@ const FabricCanvas = dynamic(() => import('./FabricCanvas'), {
   loading: () => <div className={styles.loading}>캔버스 로딩 중...</div>,
 });
 
-export default function DrawPanel({ onClose }: { onClose: () => void }) {
+interface Props {
+  onClose: () => void;
+  roomIdx?: number | null;
+}
+
+export default function DrawPanel({ onClose, roomIdx }: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
@@ -20,7 +25,7 @@ export default function DrawPanel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className={styles.canvasArea}>
-        <FabricCanvas />
+        <FabricCanvas roomIdx={roomIdx} />
       </div>
     </div>
   );

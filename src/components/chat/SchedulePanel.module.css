@@ -226,7 +226,7 @@
 /* 지도 플레이스홀더 */
 .mapPlaceholder {
   margin: 10px 12px;
-  height: 200px; border-radius: 8px;
+  height: 160px; border-radius: 8px;
   background: var(--bg-base);
   border: 1px dashed var(--border);
   display: flex; flex-direction: column;
@@ -234,8 +234,58 @@
 }
 .mapIcon { color: var(--text-muted); opacity: 0.6; }
 .mapLabel { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
-.mapAddress { font-size: 0.66rem; color: var(--text-muted); text-align: center; padding: 0 12px; }
 .mapEmpty  { font-size: 0.65rem; color: var(--text-muted); opacity: 0.5; }
+
+/* 실제 지도 컨테이너 */
+.mapContainer {
+  margin: 10px 12px;
+  height: 160px; border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+}
+.mapAddressOverlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff; font-size: 0.66rem;
+  padding: 4px 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 편집 모드 소형 지도 */
+.mapContainerSmall {
+  height: 120px; border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+/* 위치 검색 행 */
+.locationSearchRow {
+  display: flex; align-items: center; gap: 6px;
+}
+.locationSearchBtn {
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(167, 139, 250, 0.15); color: #a78bfa;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  cursor: pointer; font-size: 0.7rem; font-weight: 600;
+  font-family: inherit; white-space: nowrap;
+  transition: background 0.15s; flex-shrink: 0;
+}
+.locationSearchBtn:hover { background: rgba(167, 139, 250, 0.28); }
+.locationText {
+  flex: 1; font-size: 0.72rem; color: var(--text-sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.locationEmpty { font-size: 0.72rem; color: var(--text-muted); opacity: 0.6; flex: 1; }
+.locationClearBtn {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  flex-shrink: 0; transition: color 0.15s, background 0.15s;
+}
+.locationClearBtn:hover { color: var(--danger); background: rgba(239,68,68,0.12); }
 
 /* 세부 필드 */
 .detailFields {

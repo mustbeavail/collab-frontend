@@ -8,6 +8,13 @@ export interface ChatMessage {
   sentAt: string;
 }
 
+export interface FileMessageContent {
+  fileIdx: number;
+  oriFilename: string;
+  fileSize: number;
+  fileExtension: string;
+}
+
 export interface MessagePage {
   messages: ChatMessage[];
   hasMore: boolean;

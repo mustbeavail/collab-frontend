@@ -87,6 +87,74 @@
 }
 .closeBtn:hover { color: var(--danger); background-color: rgba(239,68,68,0.12); }
 
+/* 채팅방 내부 검색 결과 패널 */
+.searchResultPanel {
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-surface);
+  max-height: 220px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.searchResultHint {
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.searchSection {
+  padding: 6px 10px;
+}
+
+.searchSectionTitle {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 6px 3px;
+}
+
+.searchResultItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 0.12s;
+  flex-wrap: wrap;
+}
+
+.searchResultItem:hover {
+  background-color: var(--bg-hover);
+}
+
+.searchResultName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-base);
+  flex-shrink: 0;
+}
+
+.searchResultDesc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.searchResultTime {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 /* 콘텐츠 행 (채팅 + 멤버 패널) */
 .contentRow {
   flex: 1; display: flex; flex-direction: row;
@@ -278,6 +346,10 @@
 .actionBtnDrawActive {
   color: #86efac !important;
   background-color: rgba(134, 239, 172, 0.15) !important;
+}
+.actionBtnChartActive {
+  color: #818cf8 !important;
+  background-color: rgba(129, 140, 248, 0.15) !important;
 }
 .actionBtnFileActive {
   color: #fb923c !important;
@@ -552,6 +624,49 @@
 }
 .infoCancelBtn:hover { background: var(--bg-surface); }
 .infoCancelBtn:disabled { opacity: 0.45; cursor: default; }
+
+/* ── 화상 채팅 실제 비디오 요소 ── */
+.videoCamVideo {
+  width: 300px; height: 225px; border-radius: 10px;
+  object-fit: cover; display: block;
+}
+.videoCamMirror {
+  transform: scaleX(-1);
+}
+.videoSpeaking {
+  border: 2px solid var(--online);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.45);
+}
+
+/* ── 녹음/녹화 버튼 ── */
+.recordBtn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 6px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-light);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  cursor: pointer; font-size: 0.7rem; font-weight: 600;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.recordBtn:hover { background: rgba(99, 102, 241, 0.22); }
+
+@keyframes recordPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.recordBtnActive {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.22) !important;
+  animation: recordPulse 1.4s ease-in-out infinite;
+}
+
+/* ── 음성/화상 오류 메시지 ── */
+.voiceError {
+  font-size: 0.72rem; color: #ef4444;
+  text-align: center; margin: 0; padding: 2px 0;
+}
 
 /* 리사이즈 핸들 */
 .resizeHandle {

@@ -9,8 +9,11 @@ import { teamService } from '@/services/team';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 import styles from './NotificationBell.module.css';
 
+type TabType = 'all' | 'friend' | 'team';
+
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('all');
   const [profileTarget, setProfileTarget] = useState<ProfileTarget | null>(null);
   const [readCount, setReadCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +95,10 @@ export default function NotificationBell() {
     setProfileTarget({ userId: req.userId, nickname: req.nickname, email: req.email });
   };
 
+  const visibleFriends = activeTab === 'all' || activeTab === 'friend' ? pendingRequests : [];
+  const visibleTeams   = activeTab === 'all' || activeTab === 'team'   ? teamInvitations : [];
+  const visibleTotal   = visibleFriends.length + visibleTeams.length;
+
   return (
     <>
     {profileTarget && (
@@ -124,11 +131,28 @@ export default function NotificationBell() {
             <span className={styles.dropdownTitle}>알림</span>
           </div>
 
-          {totalCount === 0 ? (
+          {/* 탭 */}
+          <div className={styles.tabs}>
+            {(['all', 'friend', 'team'] as TabType[]).map(t => {
+              const count = t === 'all' ? totalCount : t === 'friend' ? pendingRequests.length : teamInvitations.length;
+              return (
+                <button
+                  key={t}
+                  className={`${styles.tab} ${activeTab === t ? styles.tabActive : ''}`}
+                  onClick={() => setActiveTab(t)}
+                >
+                  {t === 'all' ? '전체' : t === 'friend' ? '친구' : '팀'}
+                  {count > 0 && <span className={styles.tabBadge}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {visibleTotal === 0 ? (
             <div className={styles.empty}>새 알림이 없습니다.</div>
           ) : (
             <div className={styles.list}>
-              {pendingRequests.map((req) => (
+              {visibleFriends.map((req) => (
                 <div key={req.friendIdx} className={styles.item}>
                   <div
                     className={`${styles.avatar} ${styles.avatarClickable}`}
@@ -149,11 +173,11 @@ export default function NotificationBell() {
                 </div>
               ))}
 
-              {teamInvitations.length > 0 && pendingRequests.length > 0 && (
+              {visibleTeams.length > 0 && visibleFriends.length > 0 && (
                 <div className={styles.divider} />
               )}
 
-              {teamInvitations.map((inv) => (
+              {visibleTeams.map((inv) => (
                 <div key={inv.tmIdx} className={styles.item}>
                   <div className={styles.teamIcon}>
                     {inv.teamName[0]}

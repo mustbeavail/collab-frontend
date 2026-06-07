@@ -29,16 +29,28 @@
 .toolbar {
   padding: 10px 14px; flex-shrink: 0;
   border-bottom: 1px solid var(--border);
+  display: flex; gap: 6px;
 }
+.addBtn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  flex: 1; padding: 7px 10px; border-radius: 8px;
+  background: rgba(99,102,241,0.12); color: var(--accent-light);
+  border: 1px solid rgba(99,102,241,0.22); cursor: pointer;
+  font-size: 0.78rem; font-weight: 600; font-family: inherit;
+  transition: background 0.15s;
+}
+.addBtn:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
+.addBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .aiBtn {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; padding: 7px 14px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  flex: 1; padding: 7px 10px; border-radius: 8px;
   background: rgba(167,139,250,0.12); color: #a78bfa;
   border: 1px solid rgba(167,139,250,0.22); cursor: pointer;
   font-size: 0.78rem; font-weight: 600; font-family: inherit;
   transition: background 0.15s;
 }
-.aiBtn:hover { background: rgba(167,139,250,0.22); }
+.aiBtn:hover:not(:disabled) { background: rgba(167,139,250,0.22); }
+.aiBtn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .list {
   flex: 1; overflow-y: auto;
@@ -79,6 +91,77 @@
 }
 .item:hover .deleteBtn { opacity: 1; }
 .deleteBtn:hover { color: var(--danger) !important; background: rgba(239,68,68,0.12); }
+
+.headerActions {
+  display: flex; align-items: center; gap: 4px;
+}
+.editBtn {
+  width: 26px; height: 26px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  transition: color 0.15s, background-color 0.15s;
+}
+.editBtn:hover { color: var(--accent-light); background: var(--bg-hover); }
+
+/* ── 폼 ── */
+.formBody {
+  flex: 1; display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px; overflow-y: auto;
+}
+.formRow { display: flex; flex-direction: column; gap: 5px; }
+.formLabel { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+.formInput {
+  padding: 7px 10px; border-radius: 7px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text-base); font-size: 0.82rem; font-family: inherit;
+  outline: none; transition: border-color 0.15s;
+}
+.formInput:focus { border-color: var(--accent-light); }
+.formTextarea {
+  padding: 8px 10px; border-radius: 7px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text-base); font-size: 0.8rem; font-family: inherit;
+  outline: none; resize: vertical; line-height: 1.6;
+  transition: border-color 0.15s;
+}
+.formTextarea:focus { border-color: var(--accent-light); }
+.submitBtn {
+  margin-top: 4px; padding: 9px; border-radius: 8px;
+  background: var(--accent); color: #fff;
+  border: none; cursor: pointer;
+  font-size: 0.82rem; font-weight: 600; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.submitBtn:hover:not(:disabled) { opacity: 0.88; }
+.submitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.aiFormHeader {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.18);
+  font-size: 0.78rem; color: #a78bfa; font-weight: 500;
+}
+.aiSubmitBtn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px; border-radius: 8px; margin-top: 4px;
+  background: rgba(167,139,250,0.18); color: #a78bfa;
+  border: 1px solid rgba(167,139,250,0.3); cursor: pointer;
+  font-size: 0.82rem; font-weight: 600; font-family: inherit;
+  transition: background 0.15s;
+}
+.aiSubmitBtn:hover:not(:disabled) { background: rgba(167,139,250,0.3); }
+.aiSubmitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.aiHint {
+  font-size: 0.7rem; color: var(--text-muted); line-height: 1.5;
+  text-align: center; margin-top: 2px;
+}
+.spinner {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid rgba(167,139,250,0.3);
+  border-top-color: #a78bfa;
+  animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── 상세 보기 ── */
 .detailBody {

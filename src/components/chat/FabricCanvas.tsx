@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Line, Rect, Ellipse } from 'react-konva';
 import styles from './FabricCanvas.module.css';
+import { useStompClient } from '@/providers/StompProvider';
+import { useAuthStore } from '@/store/authStore';
 
 type Tool = 'pencil' | 'eraser' | 'line' | 'rect' | 'ellipse';
 
@@ -12,7 +14,16 @@ type RectEl    = { id: string; type: 'rect';    x: number; y: number; w: number;
 type EllipseEl = { id: string; type: 'ellipse'; cx: number; cy: number; rx: number; ry: number; color: string; size: number };
 type DrawEl    = PencilEl | LineEl | RectEl | EllipseEl;
 
+type DrawEventPayload = {
+  eventType: 'DRAW_MOVE' | 'DRAW_DONE' | 'DRAW_CLEAR' | 'DRAW_UNDO';
+  userId: string;
+  nickname: string;
+  element?: DrawEl | null;
+  elementId?: string;
+};
+
 const PALETTE = ['#000000', '#1d4ed8', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#7c3aed', '#db2777', '#64748b'];
+const THROTTLE_MS = 30;
 
 let _id = 0;
 const uid = () => String(++_id);
@@ -44,24 +55,37 @@ function renderEl(el: DrawEl) {
   }
 }
 
-export default function FabricCanvas() {
+interface Props {
+  roomIdx?: number | null;
+}
+
+export default function FabricCanvas({ roomIdx }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef     = useRef<any>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
+
+  const stompClient     = useStompClient();
+  const currentUserId   = useAuthStore((s) => s.user?.userId) ?? '';
+  const currentNickname = useAuthStore((s) => s.user?.nickname) ?? '';
 
   const [tool,  setTool]  = useState<Tool>('pencil');
   const [size,  setSize]  = useState(4);
   const [color, setColor] = useState('#000000');
 
-  const [elements,     setElements]     = useState<DrawEl[]>([]);
+  // 모든 사용자 공유 요소 (완성된 것만)
+  const [elements, setElements] = useState<DrawEl[]>([]);
+  // 내 진행 중 요소
   const [currentState, setCurrentState] = useState<DrawEl | null>(null);
+  // 원격 사용자 진행 중 요소 (live preview)
+  const [remoteInProgress, setRemoteInProgress] = useState<Map<string, DrawEl>>(new Map());
 
-  const historyRef  = useRef<DrawEl[][]>([[]]);
-  const currentRef  = useRef<DrawEl | null>(null);
-  const isDrawing   = useRef(false);
-  const startPos    = useRef({ x: 0, y: 0 });
+  // 내가 추가한 elementId 스택 — undo 시 마지막 것 제거
+  const myElementIdsRef = useRef<string[]>([]);
+  const currentRef      = useRef<DrawEl | null>(null);
+  const isDrawing       = useRef(false);
+  const startPos        = useRef({ x: 0, y: 0 });
+  const lastSentRef     = useRef(0);
 
-  // 이벤트 핸들러가 항상 최신 값을 읽도록 ref 유지
   const toolRef  = useRef(tool);
   const sizeRef  = useRef(size);
   const colorRef = useRef(color);
@@ -69,7 +93,6 @@ export default function FabricCanvas() {
   useEffect(() => { sizeRef.current  = size;  }, [size]);
   useEffect(() => { colorRef.current = color; }, [color]);
 
-  // 렌더링용 state + 이벤트 핸들러용 ref 동기화
   const setCurrent = useCallback((el: DrawEl | null) => {
     currentRef.current = el;
     setCurrentState(el);
@@ -86,6 +109,48 @@ export default function FabricCanvas() {
     setStageSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
+
+  /* ── WebSocket 구독 ── */
+  useEffect(() => {
+    if (!stompClient || !roomIdx) return;
+
+    const sub = stompClient.subscribe(`/topic/draw/${roomIdx}`, (frame) => {
+      const payload: DrawEventPayload = JSON.parse(frame.body);
+      // 내 이벤트는 이미 낙관적으로 적용했으므로 스킵
+      if (payload.userId === currentUserId) return;
+
+      if (payload.eventType === 'DRAW_MOVE' && payload.element) {
+        setRemoteInProgress(prev => new Map(prev).set(payload.userId, payload.element!));
+      } else if (payload.eventType === 'DRAW_DONE' && payload.element) {
+        setRemoteInProgress(prev => {
+          const next = new Map(prev);
+          next.delete(payload.userId);
+          return next;
+        });
+        setElements(prev => [...prev, payload.element!]);
+      } else if (payload.eventType === 'DRAW_CLEAR') {
+        setElements([]);
+        setRemoteInProgress(new Map());
+      } else if (payload.eventType === 'DRAW_UNDO' && payload.elementId) {
+        setElements(prev => prev.filter(e => e.id !== payload.elementId));
+      }
+    });
+
+    return () => sub.unsubscribe();
+  }, [stompClient, roomIdx, currentUserId]);
+
+  /* ── 이벤트 발행 ── */
+  const publishEvent = useCallback((
+    eventType: string,
+    element: DrawEl | null,
+    elementId?: string,
+  ) => {
+    if (!stompClient || !roomIdx || !currentUserId) return;
+    stompClient.publish({
+      destination: `/app/draw.event/${roomIdx}`,
+      body: JSON.stringify({ eventType, userId: currentUserId, nickname: currentNickname, element, elementId }),
+    });
+  }, [stompClient, roomIdx, currentUserId, currentNickname]);
 
   const getPos = () => stageRef.current?.getPointerPosition() ?? null;
 
@@ -152,7 +217,13 @@ export default function FabricCanvas() {
     }
 
     setCurrent(updated);
-  }, [setCurrent]);
+
+    const now = Date.now();
+    if (now - lastSentRef.current >= THROTTLE_MS) {
+      lastSentRef.current = now;
+      publishEvent('DRAW_MOVE', updated);
+    }
+  }, [setCurrent, publishEvent]);
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing.current) return;
@@ -160,29 +231,43 @@ export default function FabricCanvas() {
 
     const el = currentRef.current;
     if (el) {
-      setElements(prev => {
-        const next = [...prev, el];
-        historyRef.current.push(next);
-        if (historyRef.current.length > 50) historyRef.current.shift();
-        return next;
-      });
+      // 낙관적 적용
+      setElements(prev => [...prev, el]);
+      myElementIdsRef.current.push(el.id);
+      publishEvent('DRAW_DONE', el);
     }
     setCurrent(null);
-  }, [setCurrent]);
+  }, [setCurrent, publishEvent]);
 
-  /* ── 실행 취소 ── */
+  /* ── 실행 취소 — 내 마지막 요소를 공유 캔버스에서 제거, 상대에게도 브로드캐스트 ── */
   const undo = useCallback(() => {
-    if (historyRef.current.length <= 1) return;
-    historyRef.current.pop();
-    setElements([...historyRef.current[historyRef.current.length - 1]]);
-  }, []);
+    const lastId = myElementIdsRef.current.pop();
+    if (!lastId) return;
+    setElements(prev => prev.filter(e => e.id !== lastId));
+    publishEvent('DRAW_UNDO', null, lastId);
+  }, [publishEvent]);
 
-  /* ── 전체 지우기 ── */
+  /* ── 전체 지우기 — 공유 캔버스 전체 초기화 ── */
   const clearAll = useCallback(() => {
     setElements([]);
+    setRemoteInProgress(new Map());
     setCurrent(null);
-    historyRef.current = [[]];
-  }, [setCurrent]);
+    myElementIdsRef.current = [];
+    publishEvent('DRAW_CLEAR', null);
+  }, [setCurrent, publishEvent]);
+
+  /* ── PNG 저장 ── */
+  const saveAsPng = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const dataUrl = stage.toDataURL({ mimeType: 'image/png', pixelRatio: 2 });
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `drawing-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, []);
 
   const TOOLS: { id: Tool; label: string; icon: React.ReactNode }[] = [
     { id: 'pencil', label: '펜',
@@ -198,12 +283,11 @@ export default function FabricCanvas() {
   ];
 
   const showColors = tool !== 'eraser';
-  const cursor = tool === 'pencil' ? 'crosshair' : tool === 'eraser' ? 'cell' : 'crosshair';
+  const cursor = tool === 'eraser' ? 'cell' : 'crosshair';
 
   return (
     <div className={styles.wrapper}>
       <div className={styles.toolbar}>
-        {/* 도구 버튼 */}
         <div className={styles.group}>
           {TOOLS.map(t => (
             <button
@@ -219,7 +303,6 @@ export default function FabricCanvas() {
 
         <div className={styles.sep} />
 
-        {/* 크기 슬라이더 */}
         <div className={styles.group}>
           <span className={styles.sizeLabel}>{size}px</span>
           <input
@@ -257,7 +340,6 @@ export default function FabricCanvas() {
 
         <div className={styles.sep} />
 
-        {/* 액션 버튼 */}
         <div className={styles.group}>
           <button className={styles.actionBtn} onClick={undo} title="실행 취소">
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,6 +349,11 @@ export default function FabricCanvas() {
           <button className={`${styles.actionBtn} ${styles.clearBtn}`} onClick={clearAll} title="전체 지우기">
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+          <button className={styles.actionBtn} onClick={saveAsPng} title="PNG로 저장">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
           </button>
         </div>
@@ -282,10 +369,17 @@ export default function FabricCanvas() {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            style={{ cursor, background: '#ffffff' }}
+            style={{ cursor }}
           >
+            {/* 배경 레이어 — PNG 내보내기 시 흰 배경 보장 */}
+            <Layer listening={false}>
+              <Rect x={0} y={0} width={stageSize.w} height={stageSize.h} fill="#ffffff" />
+            </Layer>
+            {/* 공유 드로잉 레이어 — 모든 사용자 요소가 하나의 레이어에서 렌더링
+                eraser(destination-out)가 같은 레이어 내 모든 이전 요소를 지움 */}
             <Layer>
               {elements.map(renderEl)}
+              {Array.from(remoteInProgress.values()).map(renderEl)}
               {currentState && renderEl(currentState)}
             </Layer>
           </Stage>
