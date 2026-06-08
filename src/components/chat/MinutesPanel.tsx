@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { minutesService, MeetingNote } from '@/services/minutes';
 
 function toLocalDatetimeValue(d: Date) {
@@ -9,7 +9,7 @@ function toLocalDatetimeValue(d: Date) {
 }
 import styles from './MinutesPanel.module.css';
 
-type View = 'list' | 'detail' | 'create' | 'edit' | 'ai-form';
+type View = 'list' | 'detail' | 'create' | 'edit' | 'ai-form' | 'voice-ai-form';
 
 const renderContent = (content: string, s: Record<string, string>) =>
   content.split('\n').map((line, i) => {
@@ -19,14 +19,21 @@ const renderContent = (content: string, s: Record<string, string>) =>
     return <p key={i} className={s.p}>{line}</p>;
   });
 
+const formatBytes = (bytes: number) =>
+  bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+
 export default function MinutesPanel({
   onClose,
   roomIdx,
   currentUserId,
+  lastRecordingSegments,
+  lastRecordingMimeType,
 }: {
   onClose: () => void;
   roomIdx?: number | null;
   currentUserId?: string;
+  lastRecordingSegments?: Blob[];
+  lastRecordingMimeType?: string;
 }) {
   const [view, setView]           = useState<View>('list');
   const [notes, setNotes]         = useState<MeetingNote[]>([]);
@@ -35,9 +42,13 @@ export default function MinutesPanel({
   const [saving, setSaving]       = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
-  const [aiStartTime, setAiStartTime] = useState('');
-  const [aiEndTime, setAiEndTime]     = useState('');
-  const [generating, setGenerating]   = useState(false);
+  const [aiStartTime, setAiStartTime]   = useState('');
+  const [aiEndTime, setAiEndTime]       = useState('');
+  const [generating, setGenerating]     = useState(false);
+  const [voiceBlobs, setVoiceBlobs]     = useState<Blob[] | null>(null);
+  const [voiceMime, setVoiceMime]       = useState<string>('audio/webm');
+  const [voiceGenerating, setVoiceGenerating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadNotes = useCallback(async () => {
     if (!roomIdx) return;
@@ -57,6 +68,40 @@ export default function MinutesPanel({
     setAiStartTime(toLocalDatetimeValue(oneHourAgo));
     setAiEndTime(toLocalDatetimeValue(now));
     setView('ai-form');
+  };
+
+  const openVoiceAiForm = () => {
+    if (lastRecordingSegments?.length) {
+      setVoiceBlobs(lastRecordingSegments);
+      setVoiceMime(lastRecordingMimeType ?? 'audio/webm');
+    } else {
+      setVoiceBlobs(null);
+      setVoiceMime('audio/webm');
+    }
+    setView('voice-ai-form');
+  };
+
+  const handleVoiceFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setVoiceBlobs(files);
+    setVoiceMime(files[0].type || 'audio/webm');
+  };
+
+  const handleVoiceAiGenerate = async () => {
+    if (!roomIdx || !voiceBlobs?.length) return;
+    setVoiceGenerating(true);
+    try {
+      const created = await minutesService.generateVoiceMinutes(roomIdx, voiceBlobs, voiceMime);
+      setNotes(prev => [created, ...prev]);
+      setSelected(created);
+      setView('detail');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? '음성 AI 회의록 생성에 실패했습니다.';
+      alert(msg);
+    } finally {
+      setVoiceGenerating(false);
+    }
   };
 
   const handleAiGenerate = async () => {
@@ -133,6 +178,113 @@ export default function MinutesPanel({
       }
     } catch { /* ignore */ }
   };
+
+  /* ── 음성 AI 생성 폼 뷰 ── */
+  if (view === 'voice-ai-form') {
+    const hasLastRecording = !!lastRecordingSegments?.length;
+    const usingLastRecording = hasLastRecording && voiceBlobs === lastRecordingSegments;
+    const totalSize = voiceBlobs ? voiceBlobs.reduce((s, b) => s + b.size, 0) : 0;
+
+    return (
+      <div className={styles.panel}>
+        <div className={styles.header}>
+          <button className={styles.backBtn} onClick={() => setView('list')}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+            취소
+          </button>
+          <button className={styles.closeBtn} onClick={onClose}>
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className={styles.formBody}>
+          <div className={styles.voiceFormHeader}>
+            <svg width="16" height="16" fill="none" stroke="#10b981" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z" />
+            </svg>
+            <span>음성/영상 파일로 회의록 자동 작성</span>
+          </div>
+
+          {hasLastRecording && (
+            <div className={`${styles.lastRecordingBox} ${usingLastRecording ? styles.lastRecordingBoxActive : ''}`}>
+              <div className={styles.lastRecordingInfo}>
+                <span className={styles.lastRecordingLabel}>방금 녹음된 파일</span>
+                <span className={styles.lastRecordingMeta}>
+                  {lastRecordingSegments!.length}개 세그먼트 · {formatBytes(lastRecordingSegments!.reduce((s, b) => s + b.size, 0))}
+                </span>
+              </div>
+              {!usingLastRecording ? (
+                <button
+                  className={styles.useLastBtn}
+                  onClick={() => { setVoiceBlobs(lastRecordingSegments!); setVoiceMime(lastRecordingMimeType ?? 'audio/webm'); }}
+                >
+                  사용
+                </button>
+              ) : (
+                <span className={styles.selectedBadge}>선택됨</span>
+              )}
+            </div>
+          )}
+
+          <div className={styles.formRow}>
+            <label className={styles.formLabel}>오디오/영상 파일 선택</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*,video/*,.webm,.mp3,.mp4,.ogg,.wav"
+              multiple
+              className={styles.fileInput}
+              onChange={handleVoiceFileSelect}
+            />
+            <button
+              className={styles.fileSelectBtn}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              파일 선택
+            </button>
+            {voiceBlobs && !usingLastRecording && (
+              <span className={styles.fileSelectedInfo}>
+                {voiceBlobs.length}개 파일 · {formatBytes(totalSize)}
+              </span>
+            )}
+          </div>
+
+          <button
+            className={styles.voiceSubmitBtn}
+            onClick={handleVoiceAiGenerate}
+            disabled={voiceGenerating || !voiceBlobs?.length}
+          >
+            {voiceGenerating ? (
+              <>
+                <span className={styles.spinnerGreen} />
+                AI 분석 중...
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                회의록 생성
+              </>
+            )}
+          </button>
+          <p className={styles.aiHint}>
+            음성/영상 파일을 Gemini AI가 분석해 회의록을 자동 작성합니다. 파일 당 최대 15MB.
+            {lastRecordingSegments && lastRecordingSegments.length > 1
+              ? ` (${lastRecordingSegments.length}개 세그먼트가 자동 통합됩니다)`
+              : ''}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   /* ── AI 생성 폼 뷰 ── */
   if (view === 'ai-form') {
@@ -320,7 +472,18 @@ export default function MinutesPanel({
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
           </svg>
-          AI 자동작성
+          채팅 AI
+        </button>
+        <button
+          className={`${styles.voiceBtn} ${lastRecordingSegments?.length ? styles.voiceBtnHasRecording : ''}`}
+          onClick={openVoiceAiForm}
+          disabled={!roomIdx}
+          title={lastRecordingSegments?.length ? '방금 녹음된 파일이 있습니다' : '음성/영상 AI 회의록'}
+        >
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z" />
+          </svg>
+          음성 AI
         </button>
       </div>
 

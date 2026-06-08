@@ -931,7 +931,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         }`}>
           {activePanel === 'schedule' && <SchedulePanel onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
           {activePanel === 'file'     && <FilePanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
-          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
+          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} lastRecordingSegments={webrtc.lastRecordingSegments} lastRecordingMimeType={webrtc.lastRecordingMimeType} />}
           {activePanel === 'draw'     && <DrawPanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
           {activePanel === 'chart'    && <ChartPanel    onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
         </div>

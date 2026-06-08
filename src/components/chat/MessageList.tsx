@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './MessageList.module.css';
 import type { ChatMessage, FileMessageContent } from '@/types/chat';
 import { fileService } from '@/services/file';
+import { translateService } from '@/services/translate';
 
 interface Props {
   messages: ChatMessage[];
@@ -57,11 +58,37 @@ function FileMessageBubble({ content }: { content: string }) {
   );
 }
 
+function TranslateIcon() {
+  return (
+    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+    </svg>
+  );
+}
+
 export default function MessageList({ messages, loading, loadingMore, hasMore, onLoadMore, currentUserId, initialLoad }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
   const prevMessagesLengthRef = useRef(0);
+
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translating, setTranslating] = useState<Record<number, boolean>>({});
+
+  const handleTranslate = useCallback(async (msgIdx: number, text: string) => {
+    if (translations[msgIdx] !== undefined) {
+      setTranslations(prev => { const next = { ...prev }; delete next[msgIdx]; return next; });
+      return;
+    }
+    setTranslating(prev => ({ ...prev, [msgIdx]: true }));
+    try {
+      const result = await translateService.translate(text, 'ko');
+      setTranslations(prev => ({ ...prev, [msgIdx]: result }));
+    } finally {
+      setTranslating(prev => { const next = { ...prev }; delete next[msgIdx]; return next; });
+    }
+  }, [translations]);
 
   // 초기 로드 완료 시 맨 아래로 스크롤
   useEffect(() => {
@@ -76,7 +103,7 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
     const el = listRef.current;
     if (!el || loadingMore) return;
     const addedAtBottom = messages.length > prevMessagesLengthRef.current
-      && messages.length - prevMessagesLengthRef.current === 1; // STOMP 메시지는 1개씩 추가
+      && messages.length - prevMessagesLengthRef.current === 1;
     if (addedAtBottom) {
       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
       if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -137,10 +164,28 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                 <span className={styles.time}>{formatTime(msg.sentAt)}</span>
               </div>
             )}
-            {msg.msgType === 'FILE'
-              ? <FileMessageBubble content={msg.content} />
-              : <p className={styles.content}>{msg.content}</p>
-            }
+            {msg.msgType === 'FILE' ? (
+              <FileMessageBubble content={msg.content} />
+            ) : (
+              <div className={styles.bubbleWrap}>
+                <p className={styles.content}>{msg.content}</p>
+                <button
+                  className={`${styles.translateBtn} ${translations[msg.msgIdx] !== undefined ? styles.translateBtnActive : ''}`}
+                  onClick={() => handleTranslate(msg.msgIdx, msg.content)}
+                  title={translations[msg.msgIdx] !== undefined ? '번역 숨기기' : '한국어로 번역'}
+                  disabled={translating[msg.msgIdx]}
+                >
+                  {translating[msg.msgIdx] ? (
+                    <span className={styles.translateSpinner} />
+                  ) : (
+                    <TranslateIcon />
+                  )}
+                </button>
+                {translations[msg.msgIdx] !== undefined && (
+                  <p className={styles.translatedText}>{translations[msg.msgIdx]}</p>
+                )}
+              </div>
+            )}
             {msg.userId === currentUserId && (
               <span className={`${styles.time} ${styles.mineTime}`}>{formatTime(msg.sentAt)}</span>
             )}

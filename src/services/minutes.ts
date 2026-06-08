@@ -48,4 +48,16 @@ export const minutesService = {
     const res = await api.post(`/api/minutes/rooms/${roomIdx}/ai-generate`, payload);
     return res.data.data;
   },
+
+  generateVoiceMinutes: async (roomIdx: number, audioBlobs: Blob[], mimeType: string): Promise<MeetingNote> => {
+    const formData = new FormData();
+    const ext = mimeType.includes('video') ? 'webm' : 'webm';
+    audioBlobs.forEach((blob, i) => {
+      formData.append('audio', blob, `segment-${i + 1}.${ext}`);
+    });
+    const res = await api.post(`/api/minutes/rooms/${roomIdx}/voice-generate`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data;
+  },
 };

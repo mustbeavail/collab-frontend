@@ -102,3 +102,78 @@
 .mineTime {
   margin-top: 4px;
 }
+
+.bubbleWrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.mine .bubbleWrap {
+  align-items: flex-end;
+}
+
+.translateBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-secondary, #f1f5f9);
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 0;
+  position: absolute;
+  bottom: 0;
+  right: -28px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mine .translateBtn {
+  right: auto;
+  left: -28px;
+}
+
+.translateBtn:hover {
+  color: var(--accent, #6366f1);
+  background: var(--accent-dim, #eef2ff);
+}
+
+.translateBtnActive {
+  color: var(--accent, #6366f1) !important;
+  background: var(--accent-dim, #eef2ff) !important;
+}
+
+.bubbleWrap:hover .translateBtn {
+  display: flex;
+}
+
+.translateSpinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--accent-dim, #eef2ff);
+  border-top-color: var(--accent, #6366f1);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.translatedText {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  background: var(--bg-secondary, #f1f5f9);
+  border-left: 2px solid var(--accent, #6366f1);
+  padding: 4px 8px;
+  border-radius: 0 6px 6px 0;
+  line-height: 1.5;
+  max-width: 100%;
+  word-break: break-word;
+}

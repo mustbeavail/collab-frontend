@@ -45,6 +45,8 @@ export interface UseWebRTCResult {
   startRecording: () => void;
   stopRecording: () => void;
   isRecording: boolean;
+  lastRecordingSegments: Blob[];
+  lastRecordingMimeType: string;
   error: string | null;
 }
 
@@ -66,9 +68,13 @@ export function useWebRTC({
   const audioCtxRef     = useRef<AudioContext | null>(null);
   const analysersRef    = useRef<Map<string, AnalyserNode>>(new Map());
   const timerRef        = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recorderRef     = useRef<MediaRecorder | null>(null);
-  const chunksRef       = useRef<Blob[]>([]);
-  const localVideoRef   = useRef<HTMLVideoElement>(null);
+  const recorderRef       = useRef<MediaRecorder | null>(null);
+  const chunksRef         = useRef<Blob[]>([]);
+  const segmentsRef       = useRef<Blob[]>([]);
+  const recordStreamRef   = useRef<MediaStream | null>(null);
+  const segmentTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFinalStopRef    = useRef(false);
+  const localVideoRef     = useRef<HTMLVideoElement>(null);
 
   // toggleMic 에서 최신값 참조용
   const clientRef     = useRef(client);
@@ -85,8 +91,10 @@ export function useWebRTC({
   const [micOnUsers,    setMicOnUsers]    = useState<Set<string>>(new Set());
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const [localMicOn,    setLocalMicOn]    = useState(true);
-  const [isRecording,   setIsRecording]   = useState(false);
-  const [error,         setError]         = useState<string | null>(null);
+  const [isRecording,           setIsRecording]           = useState(false);
+  const [lastRecordingSegments, setLastRecordingSegments] = useState<Blob[]>([]);
+  const [lastRecordingMimeType, setLastRecordingMimeType] = useState<string>('');
+  const [error,                 setError]                 = useState<string | null>(null);
 
   // 로컬 비디오를 스트림에 연결
   useEffect(() => {
@@ -324,6 +332,10 @@ export function useWebRTC({
       setLocalMicOn(true);
       setIsRecording(false);
       setError(null);
+      // 세그먼트 타이머 정리 후 최종 stop 처리
+      isFinalStopRef.current = true;
+      if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
+      recordStreamRef.current = null;
       recorderRef.current?.stop();
       recorderRef.current = null;
     };
@@ -350,7 +362,7 @@ export function useWebRTC({
     }
   }, []);
 
-  // ── 녹음/녹화 ─────────────────────────────────────────────────────────────
+  // ── 녹음/녹화 (세그먼트 자동 분할: 음성 10분 / 화상 3분) ──────────────────
   const startRecording = useCallback(() => {
     if (isRecording || !localStreamRef.current) return;
     try {
@@ -375,26 +387,59 @@ export function useWebRTC({
         ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm')
         : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')     ? 'audio/webm;codecs=opus'     : 'audio/webm');
 
-      const mr = new MediaRecorder(recordStream, { mimeType });
-      chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href = url;
-        a.download = `recording-${Date.now()}.webm`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setIsRecording(false);
+      const maxSegmentMs = sessionType === 'VIDEO' ? 3 * 60 * 1000 : 10 * 60 * 1000;
+
+      recordStreamRef.current = recordStream;
+      segmentsRef.current = [];
+      isFinalStopRef.current = false;
+
+      // 각 세그먼트마다 새 MediaRecorder를 생성해 독립된 webm 파일로 만든다
+      const startSegment = (): MediaRecorder => {
+        const mr = new MediaRecorder(recordStream, { mimeType });
+        chunksRef.current = [];
+        mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+        mr.onstop = () => {
+          const blob = new Blob(chunksRef.current, { type: mimeType });
+          segmentsRef.current.push(blob);
+          chunksRef.current = [];
+
+          if (isFinalStopRef.current || !recordStreamRef.current) {
+            const segs = [...segmentsRef.current];
+            setLastRecordingSegments(segs);
+            setLastRecordingMimeType(mimeType);
+            // 세그먼트별 파일 다운로드
+            segs.forEach((seg, i) => {
+              const url = URL.createObjectURL(seg);
+              const a   = document.createElement('a');
+              a.href     = url;
+              a.download = segs.length > 1
+                ? `recording-${Date.now()}-part${i + 1}.webm`
+                : `recording-${Date.now()}.webm`;
+              a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            });
+            setIsRecording(false);
+            if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
+          } else {
+            // 자동 분할: 다음 세그먼트 시작
+            recorderRef.current = startSegment();
+          }
+        };
+        mr.start(500);
+        return mr;
       };
-      mr.start(500);
-      recorderRef.current = mr;
+
+      recorderRef.current = startSegment();
+      segmentTimerRef.current = setInterval(() => {
+        if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+      }, maxSegmentMs);
       setIsRecording(true);
     } catch { /* MediaRecorder 미지원 또는 권한 오류 */ }
   }, [isRecording, sessionType]);
 
   const stopRecording = useCallback(() => {
+    isFinalStopRef.current = true;
+    if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
   }, []);
 
@@ -411,6 +456,8 @@ export function useWebRTC({
     startRecording,
     stopRecording,
     isRecording,
+    lastRecordingSegments,
+    lastRecordingMimeType,
     error,
   };
 }
