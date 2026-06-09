@@ -36,7 +36,6 @@ export interface ChatRoomInfo {
 export interface ChatRoomDetail {
   roomIdx: number;
   roomName: string;
-  description: string | null;
   createdAt: string;
   isDm: boolean;
 }

@@ -584,7 +584,6 @@
   font-size: 0.82rem; color: var(--text-base);
   line-height: 1.4; word-break: break-word;
 }
-.infoEmpty { color: var(--text-muted); font-style: italic; }
 
 /* 편집 폼 */
 .infoEditGroup {
@@ -598,15 +597,6 @@
   transition: border-color 0.15s;
 }
 .infoEditInput:focus { border-color: var(--accent-light); }
-.infoEditTextarea {
-  width: 100%; padding: 7px 10px; font-size: 0.82rem;
-  background: var(--bg-hover); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--text-base); outline: none;
-  font-family: inherit; resize: vertical; min-height: 72px;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
-}
-.infoEditTextarea:focus { border-color: var(--accent-light); }
 .infoEditActions { display: flex; gap: 6px; }
 .infoSaveBtn {
   flex: 1; padding: 7px 0; border-radius: 8px;

@@ -118,7 +118,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const [infoLoading, setInfoLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editDesc, setEditDesc] = useState('');
   const [saving, setSaving] = useState(false);
 
   const currentUserId   = useAuthStore((s) => s.user?.userId);
@@ -191,7 +190,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
       .then(info => {
         setRoomInfo(info);
         setEditName(info.roomName);
-        setEditDesc(info.description ?? '');
       })
       .catch(() => {})
       .finally(() => setInfoLoading(false));
@@ -201,7 +199,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     if (!roomIdx || !editName.trim()) return;
     setSaving(true);
     try {
-      const updated = await chatService.updateRoomInfo(roomIdx, editName.trim(), editDesc.trim() || null);
+      const updated = await chatService.updateRoomInfo(roomIdx, editName.trim());
       setRoomInfo(updated);
       setEditMode(false);
     } catch { /* 실패 무시 */ }
@@ -859,12 +857,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                       <span className={styles.infoValue}>{roomInfo.roomName}</span>
                     </div>
                     <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>설명</span>
-                      <span className={styles.infoValue}>
-                        {roomInfo.description || <span className={styles.infoEmpty}>없음</span>}
-                      </span>
-                    </div>
-                    <div className={styles.infoRow}>
                       <span className={styles.infoLabel}>생성일</span>
                       <span className={styles.infoValue}>{formatDate(roomInfo.createdAt)}</span>
                     </div>
@@ -886,17 +878,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                         maxLength={100}
                       />
                     </div>
-                    <div className={styles.infoEditGroup}>
-                      <label className={styles.infoLabel}>설명</label>
-                      <textarea
-                        className={styles.infoEditTextarea}
-                        value={editDesc}
-                        onChange={e => setEditDesc(e.target.value)}
-                        maxLength={500}
-                        rows={4}
-                        placeholder="채팅방 설명을 입력하세요..."
-                      />
-                    </div>
                     <div className={styles.infoEditActions}>
                       <button
                         className={styles.infoSaveBtn}
@@ -910,7 +891,6 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                         onClick={() => {
                           setEditMode(false);
                           setEditName(roomInfo?.roomName ?? '');
-                          setEditDesc(roomInfo?.description ?? '');
                         }}
                         disabled={saving}
                       >

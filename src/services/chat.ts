@@ -36,8 +36,8 @@ export const chatService = {
     return res.data.data;
   },
 
-  updateRoomInfo: async (roomIdx: number, roomName: string, description?: string | null): Promise<ChatRoomDetail> => {
-    const res = await api.put(`/api/chat/rooms/${roomIdx}`, { roomName, description });
+  updateRoomInfo: async (roomIdx: number, roomName: string): Promise<ChatRoomDetail> => {
+    const res = await api.put(`/api/chat/rooms/${roomIdx}`, { roomName });
     return res.data.data;
   },
 };
