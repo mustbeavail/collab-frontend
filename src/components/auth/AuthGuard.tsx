@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/auth';
+import { refreshAuth } from '@/lib/axios';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const accessToken = useAuthStore((s) => s.accessToken);
-  const setAuth = useAuthStore((s) => s.setAuth);
 
   // accessToken은 보안상 메모리에만 보관하므로 새로고침/새 탭이면 사라진다.
   // 마운트 시 httpOnly refresh 쿠키로 1회 복구를 시도하고, 끝날 때까지 로딩을 보여준다.
@@ -25,15 +24,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    authService
-      .refresh()
-      .then((data) => {
-        setAuth(data.accessToken, {
-          userId: data.userId,
-          nickname: data.nickname,
-          email: data.email,
-        });
-      })
+    // 인터셉터의 401 refresh 와 동일한 single-flight 사용(레이스 방지). 성공 시 store 갱신은 내부에서 처리.
+    refreshAuth()
       .catch(() => {
         // 복구 실패(쿠키 없음/만료) → 아래 가드 effect가 /login 으로 보낸다
       })

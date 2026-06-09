@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthStore } from '@/store/authStore';
+import type { ApiResponse, AuthResponse } from '@/types/auth';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
@@ -15,22 +16,27 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// single-flight: 동시에 여러 401이 와도 refresh는 1번만 호출
-let refreshPromise: Promise<string> | null = null;
+// single-flight: AuthGuard 마운트 복구와 401 인터셉터가 동시에 refresh를 불러도
+// 네트워크 호출은 1번만 → single-use refresh 토큰을 두 번 소비해 401 나는 레이스 방지.
+let refreshPromise: Promise<AuthResponse> | null = null;
 
-async function doRefresh(): Promise<string> {
+export function refreshAuth(): Promise<AuthResponse> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = axios
-    .post<{ data: { accessToken: string } }>(
+    .post<ApiResponse<AuthResponse>>(
       `${BASE_URL}/api/auth/refresh`,
       {},
       { withCredentials: true }
     )
     .then(({ data }) => {
-      const newAccessToken = data.data.accessToken;
-      useAuthStore.getState().setAccessToken(newAccessToken);
-      return newAccessToken;
+      const auth = data.data;
+      useAuthStore.getState().setAuth(auth.accessToken, {
+        userId: auth.userId,
+        nickname: auth.nickname,
+        email: auth.email,
+      });
+      return auth;
     })
     .finally(() => {
       refreshPromise = null;
@@ -50,8 +56,8 @@ apiClient.interceptors.response.use(
     ) {
       original._retry = true;
       try {
-        const newAccessToken = await doRefresh();
-        original.headers.Authorization = `Bearer ${newAccessToken}`;
+        const { accessToken } = await refreshAuth();
+        original.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(original);
       } catch {
         useAuthStore.getState().clear();
