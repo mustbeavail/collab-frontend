@@ -122,6 +122,86 @@
   border-color: var(--border);
 }
 
+/* 기능 테스트(테스트봇) 버튼 + 호버 툴팁 */
+.testbotContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.testbotBtn:hover {
+  color: var(--accent-light);
+  border-color: var(--border);
+}
+
+.testbotBtnBusy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.testbotTooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: 260px;
+  padding: 12px 14px;
+  background-color: var(--bg-input, #1e1e24);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--text-base);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: left;
+  animation: testbotTooltipIn 0.15s ease;
+}
+
+.testbotTooltipTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin-bottom: 6px;
+  color: var(--accent-light);
+}
+
+.testbotTooltipDesc {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@keyframes testbotTooltipIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.testbotToast {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 51;
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: testbotTooltipIn 0.15s ease;
+}
+
+.testbotToastOk {
+  background-color: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.testbotToastErr {
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: var(--danger);
+}
+
 .closeAllBtn { color: var(--text-muted); }
 
 .closeAllBtn:not(.closeAllBtnDisabled):hover {

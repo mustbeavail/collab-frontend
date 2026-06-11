@@ -5,6 +5,7 @@ import ChatWindow from '@/components/windows/ChatWindow';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import CalendarPopup from '@/components/calendar/CalendarPopup';
 import SearchModal from '@/components/search/SearchModal';
+import { testbotService } from '@/services/testbot';
 import styles from './ChatArea.module.css';
 import type { ChatWindowState } from '@/app/page';
 
@@ -32,6 +33,85 @@ function Clock() {
   }, []);
 
   return <span className={styles.clock}>{time}</span>;
+}
+
+function TestBotButton() {
+  const [showTip, setShowTip] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  const onEnter = () => {
+    hoverTimer.current = setTimeout(() => setShowTip(true), 500);
+  };
+  const onLeave = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setShowTip(false);
+  };
+
+  const showToast = (ok: boolean, msg: string) => {
+    setToast({ ok, msg });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleClick = async () => {
+    if (busy) return;
+    setShowTip(false);
+    setBusy(true);
+    try {
+      const res = await testbotService.invite();
+      showToast(true, res?.message ?? '테스트봇이 친구 요청을 보냈어요!');
+    } catch {
+      showToast(false, '요청 실패. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className={styles.testbotContainer}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      <button
+        className={`${styles.headerBtn} ${styles.testbotBtn} ${busy ? styles.testbotBtnBusy : ''}`}
+        onClick={handleClick}
+        disabled={busy}
+      >
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <rect x="4" y="8" width="16" height="11" rx="2" strokeWidth={1.5} />
+          <path strokeLinecap="round" strokeWidth={1.5} d="M12 8V4M9 3h6" />
+          <circle cx="9" cy="13" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="13" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <span>기능 테스트</span>
+      </button>
+
+      {showTip && !toast && (
+        <div className={styles.testbotTooltip}>
+          <div className={styles.testbotTooltipTitle}>🤖 채팅 기능 테스트 봇</div>
+          <p className={styles.testbotTooltipDesc}>
+            클릭하면 AI 테스트봇이 친구 요청을 보내요. 수락하면 봇이 안내 메시지를 보내고,
+            이후 봇과 자유롭게 채팅하며 메시지·번역 등 채팅 기능을 시험해 볼 수 있어요.
+          </p>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`${styles.testbotToast} ${toast.ok ? styles.testbotToastOk : styles.testbotToastErr}`}>
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimize, onUpdate, onBringToFront }: Props) {
@@ -62,6 +142,9 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
         </div>
         <div className={styles.headerActions}>
           <Clock />
+
+          {/* 기능 테스트(테스트봇) 버튼 */}
+          <TestBotButton />
 
           {/* 글로벌 검색 버튼 */}
           <button
