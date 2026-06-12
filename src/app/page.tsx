@@ -30,6 +30,17 @@ export type ChatWindowState = {
 
 const MAX_WINDOWS = 20;
 
+/**
+ * /user/queue 실시간 구독은 StompProvider 컨텍스트 안에서만 client를 얻을 수 있다.
+ * Home 본문에서 useWebSocket()을 호출하면 Provider 바깥이라 client가 항상 null이 되어
+ * 친구요청/팀초대/FORCE_LOGOUT/NEW_MESSAGE 구독이 전혀 일어나지 않았다(실시간 미수신 버그).
+ * Provider 하위 컴포넌트에서 호출하도록 분리한다.
+ */
+function WebSocketBridge() {
+  useWebSocket();
+  return null;
+}
+
 export default function Home() {
   const [windows, setWindows] = useState<ChatWindowState[]>([]);
   const [shakingId, setShakingId] = useState<string | null>(null);
@@ -42,8 +53,6 @@ export default function Home() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [setPendingRequests, setLoading]);
-
-  useWebSocket();
 
   const openChat = useCallback((chat: ChatInfo) => {
     const existing = windows.find(w => w.chat.id === chat.id);
@@ -115,6 +124,7 @@ export default function Home() {
   return (
     <AuthGuard>
       <StompProvider>
+      <WebSocketBridge />
       <div className={styles.layout}>
         <Sidebar
           openChatIds={windows.map(w => w.chat.id)}

@@ -163,10 +163,15 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, initialLoad, unreadCount } =
     useChatRoom(roomIdx, !win.minimized);
 
-  // 미읽음 카운트를 부모로 전달
+  // 미읽음 카운트를 부모로 전달.
+  // onUnreadChange는 부모(ChatArea)에서 인라인 화살표로 생성돼 매 렌더 식별자가 바뀐다.
+  // deps에 넣으면 매 렌더 effect 재실행→부모 setUnreadCounts(매번 새 객체)→재렌더 무한루프
+  // (Maximum update depth exceeded)가 발생한다. ref로 최신 함수만 들고 unreadCount 변화 시에만 호출한다.
+  const onUnreadChangeRef = useRef(onUnreadChange);
+  onUnreadChangeRef.current = onUnreadChange;
   useEffect(() => {
-    onUnreadChange(unreadCount);
-  }, [unreadCount, onUnreadChange]);
+    onUnreadChangeRef.current(unreadCount);
+  }, [unreadCount]);
 
   // 방을 보고 있는 동안 openRooms 등록 → 미개방 알림(미읽음) 해제(qa 항목15)
   const setRoomOpen = useChatNotifStore((s) => s.setOpen);
