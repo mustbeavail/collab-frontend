@@ -9,6 +9,8 @@ import { teamService } from '@/services/team';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 import styles from './NotificationBell.module.css';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
 type TabType = 'all' | 'friend' | 'team';
 
 export default function NotificationBell() {
@@ -154,11 +156,22 @@ export default function NotificationBell() {
             <div className={styles.list}>
               {visibleFriends.map((req) => (
                 <div key={req.friendIdx} className={styles.item}>
-                  <div
-                    className={`${styles.avatar} ${styles.avatarClickable}`}
-                    onClick={() => handleViewProfile(req)}
-                    title="프로필 보기"
-                  >{req.nickname[0]}</div>
+                  {req.avatarUrl ? (
+                    <img
+                      className={`${styles.avatar} ${styles.avatarClickable}`}
+                      src={`${API_BASE}${req.avatarUrl}`}
+                      alt={req.nickname}
+                      style={{ objectFit: 'cover' }}
+                      onClick={() => handleViewProfile(req)}
+                      title="프로필 보기"
+                    />
+                  ) : (
+                    <div
+                      className={`${styles.avatar} ${styles.avatarClickable}`}
+                      onClick={() => handleViewProfile(req)}
+                      title="프로필 보기"
+                    >{req.nickname[0]}</div>
+                  )}
                   <div className={styles.info}>
                     <span
                       className={`${styles.name} ${styles.nameClickable}`}

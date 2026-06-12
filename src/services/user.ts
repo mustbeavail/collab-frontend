@@ -64,4 +64,7 @@ export const userService = {
       })
       .then((r) => r.data.data.avatarUrl);
   },
+
+  // 프로필 사진 제거 — DELETE /api/users/me/avatar
+  deleteAvatar: () => apiClient.delete('/api/users/me/avatar'),
 };

@@ -29,6 +29,7 @@ function formatJoinAt(raw?: string): string {
 export default function UserProfileModal({ user, onClose, onDm }: Props) {
   const [profile, setProfile] = useState<UserPublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [enlarged, setEnlarged] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -51,12 +52,15 @@ export default function UserProfileModal({ user, onClose, onDm }: Props) {
           </svg>
         </button>
 
-        {/* 아바타 */}
+        {/* 아바타 (클릭 시 확대) */}
         {profile?.avatarUrl ? (
           <img
             className={styles.avatarImg}
             src={`${API_BASE}${profile.avatarUrl}`}
             alt={display.nickname}
+            style={{ cursor: 'zoom-in' }}
+            onClick={() => setEnlarged(true)}
+            title="클릭하여 크게 보기"
           />
         ) : (
           <div className={styles.avatar}>{loading ? '…' : initial}</div>
@@ -65,8 +69,8 @@ export default function UserProfileModal({ user, onClose, onDm }: Props) {
         {/* 닉네임 */}
         <p className={styles.nickname}>{display.nickname}</p>
 
-        {/* 아이디 */}
-        <p className={styles.userId}>@{display.userId}</p>
+        {/* 아이디(=이메일) */}
+        <p className={styles.userId}>{display.userId}</p>
 
         {/* 구분선 */}
         <div className={styles.divider} />
@@ -111,6 +115,25 @@ export default function UserProfileModal({ user, onClose, onDm }: Props) {
           </button>
         )}
       </div>
+
+      {/* 프로필 사진 확대 보기 */}
+      {enlarged && profile?.avatarUrl && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+          onClick={(e) => { e.stopPropagation(); setEnlarged(false); }}
+        >
+          <img
+            src={`${API_BASE}${profile.avatarUrl}`}
+            alt={display.nickname}
+            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -114,8 +114,8 @@ export default function SignupPage() {
     setError('');
 
     if (!emailVerified) { setError('이메일 인증을 완료해주세요.'); return; }
+    if (!form.password) { setError('비밀번호를 입력해주세요.'); return; }
     if (form.password !== form.passwordConfirm) { setError('비밀번호가 일치하지 않습니다.'); return; }
-    if (form.password.length < 8) { setError('비밀번호는 8자 이상이어야 합니다.'); return; }
     if (form.nickname.length > 20) { setError('닉네임은 20자 이하여야 합니다.'); return; }
     if (!nicknameChecked) { setError('닉네임 중복확인을 해주세요.'); return; }
     if (nicknameAvailable === false) { setError('사용할 수 없는 닉네임입니다.'); return; }
@@ -260,7 +260,7 @@ export default function SignupPage() {
               <label className={styles.label}>비밀번호</label>
               <input
                 type="password"
-                placeholder="8자 이상"
+                placeholder="비밀번호 입력"
                 className={styles.input}
                 value={form.password}
                 onChange={setField('password')}

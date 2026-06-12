@@ -9,6 +9,10 @@ export const friendService = {
   getPendingRequests: () =>
     apiClient.get<ApiResponse<FriendItem[]>>('/api/friends/requests').then((r) => r.data.data),
 
+  // 내가 보낸 대기중 요청(qa 항목6)
+  getSentRequests: () =>
+    apiClient.get<ApiResponse<FriendItem[]>>('/api/friends/requests/sent').then((r) => r.data.data),
+
   getOnlineStatuses: () =>
     apiClient.get<ApiResponse<Record<string, boolean>>>('/api/friends/online-status').then((r) => r.data.data),
 

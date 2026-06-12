@@ -4,4 +4,5 @@ export interface FriendItem {
   nickname: string;
   email: string;
   status: string;
+  avatarUrl?: string | null;
 }

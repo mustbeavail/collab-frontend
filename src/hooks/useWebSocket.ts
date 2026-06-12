@@ -46,6 +46,7 @@ export function useWebSocket() {
         const payload: { type: string } = JSON.parse(frame.body);
         if (payload.type === 'FORCE_LOGOUT') {
           clear();
+          alert('다른 기기에서 로그인되어 로그아웃되었습니다.');
           router.replace('/login');
         }
       } catch { /* 파싱 실패 무시 */ }

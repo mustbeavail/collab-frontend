@@ -17,6 +17,8 @@ import TeamModal from '@/components/team/TeamModal';
 import TeamInfoModal from '@/components/team/TeamInfoModal';
 import type { TeamItem } from '@/types/team';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
 type MenuFriend  = { friend: FriendItem; x: number; y: number };
 type MenuTeam    = { teamIdx: number; name: string; x: number; y: number };
 type MenuChannel = { id: string; ch: string; x: number; y: number };
@@ -41,6 +43,12 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
   // 프로필 모달
   const [viewingUser, setViewingUser] = useState<ProfileTarget | null>(null);
+
+  // 내 프로필 사진(좌하단 표시용)
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+
+  // 내가 보낸 대기중 친구요청(qa 항목6)
+  const [sentPending, setSentPending] = useState<FriendItem[]>([]);
 
   // 팀 모달
   type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
@@ -71,6 +79,20 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       .catch(() => setFriends([]))
       .finally(() => setFriendsLoading(false));
   }, [setFriends, setOnlineUsers, setFriendsLoading]);
+
+  // 내 프로필 사진 로드(마운트 시 1회 — /profile에서 변경 후 메인 복귀하면 리마운트로 갱신)
+  useEffect(() => {
+    userService.getProfile()
+      .then((p) => setMyAvatarUrl(p.avatarUrl ?? null))
+      .catch(() => setMyAvatarUrl(null));
+  }, []);
+
+  // 내가 보낸 대기중 요청 로드(qa 항목6)
+  useEffect(() => {
+    friendService.getSentRequests()
+      .then(setSentPending)
+      .catch(() => setSentPending([]));
+  }, []);
 
   useEffect(() => {
     setTeamsLoading(true);
@@ -114,6 +136,8 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     try {
       await friendService.sendRequest(targetUserId);
       setSentRequests((prev) => new Set([...prev, targetUserId]));
+      // 보낸 대기중 목록 갱신(친구패널에 '대기중' 표시)
+      friendService.getSentRequests().then(setSentPending).catch(() => {});
     } catch {
       setSentRequests((prev) => new Set([...prev, targetUserId]));
     }
@@ -233,6 +257,14 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     closeAllMenus();
     setMenuChannel({ id, ch, x: rect.right + 8, y: rect.top });
   };
+
+  // 아바타: 사진 있으면 이미지, 없으면 닉네임 첫 글자(qa 항목9)
+  const Avatar = ({ url, name, className }: { url?: string | null; name: string; className: string }) =>
+    url ? (
+      <img className={className} src={`${API_BASE}${url}`} alt={name} style={{ objectFit: 'cover' }} />
+    ) : (
+      <div className={className}>{name[0]}</div>
+    );
 
   const DotsIcon = () => (
     <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -496,7 +528,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                           onClick={() => setViewingUser(u)}
                           title="프로필 보기"
                         >
-                          <div className={styles.searchResultAvatar}>{u.nickname[0]}</div>
+                          <Avatar url={u.avatarUrl} name={u.nickname} className={styles.searchResultAvatar} />
                           <div className={styles.searchResultInfo}>
                             <span className={styles.searchResultName}>{u.nickname}</span>
                             <span className={styles.searchResultEmail}>{u.email}</span>
@@ -532,7 +564,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                     onClick={e => openContextMenu(f, e)}
                   >
                     <div className={styles.avatarWrap}>
-                      <div className={styles.friendAvatar}>{f.nickname[0]}</div>
+                      <Avatar url={f.avatarUrl} name={f.nickname} className={styles.friendAvatar} />
                       <div className={`${styles.statusDot} ${onlineUsers.has(f.userId) ? styles.online : styles.offline}`} />
                     </div>
                     <span className={styles.friendName}>{f.nickname}</span>
@@ -542,6 +574,33 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                   </button>
                 );
               })}
+
+              {/* 내가 보낸 대기중 요청(qa 항목6) — 아이디 표시 */}
+              {sentPending.length > 0 && (
+                <>
+                  <div style={{ padding: '8px 12px 4px', fontSize: '0.6875rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    보낸 요청 · 대기중
+                  </div>
+                  {sentPending.map((s) => (
+                    <button
+                      key={`sent-${s.friendIdx}`}
+                      className={styles.friendItem}
+                      onClick={() => setViewingUser({ userId: s.userId, nickname: s.nickname, email: s.email })}
+                      title={`${s.nickname} 프로필 보기`}
+                      style={{ opacity: 0.7 }}
+                    >
+                      <div className={styles.avatarWrap}>
+                        <Avatar url={s.avatarUrl} name={s.nickname} className={styles.friendAvatar} />
+                      </div>
+                      <div className={styles.searchResultInfo}>
+                        <span className={styles.friendName}>{s.nickname}</span>
+                        <span className={styles.searchResultEmail}>{s.userId}</span>
+                      </div>
+                      <span className={styles.searchTagSent}>대기중</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
           <div className={styles.sectionDivider} />
@@ -559,7 +618,16 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
             }}
           >
             <div className={styles.myAvatarWrap}>
-              <div className={styles.myAvatar}>{user?.nickname?.[0] ?? '?'}</div>
+              {myAvatarUrl ? (
+                <img
+                  className={styles.myAvatar}
+                  src={`${API_BASE}${myAvatarUrl}`}
+                  alt={user?.nickname ?? ''}
+                  style={{ objectFit: 'cover' }}
+                />
+              ) : (
+                <div className={styles.myAvatar}>{user?.nickname?.[0] ?? '?'}</div>
+              )}
               <div className={styles.myOnlineDot} />
             </div>
             <div className={styles.userInfo}>

@@ -29,6 +29,7 @@ function ProfileContent() {
   const [nickChecked, setNickChecked] = useState<'idle' | 'ok' | 'dup'>('idle');
   const [nickCheckMsg, setNickCheckMsg] = useState('');
   const [nickChecking, setNickChecking] = useState(false);
+  const [avatarEnlarged, setAvatarEnlarged] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +70,20 @@ function ProfileContent() {
     }
   };
 
+  const handleRemoveAvatar = async () => {
+    if (!confirm('프로필 사진을 제거하시겠습니까?')) return;
+    setAvatarUploading(true);
+    setSaveError('');
+    try {
+      await userService.deleteAvatar();
+      setAvatarUrl(null);
+    } catch {
+      setSaveError('사진 제거 중 오류가 발생했습니다.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -96,10 +111,6 @@ function ProfileContent() {
     }
     if (newPw && newPw !== newPwConfirm) {
       setSaveError('새 비밀번호가 일치하지 않습니다.');
-      return;
-    }
-    if (newPw && newPw.length < 8) {
-      setSaveError('새 비밀번호는 8자 이상이어야 합니다.');
       return;
     }
 
@@ -164,6 +175,9 @@ function ProfileContent() {
                   src={`${API_BASE}${avatarUrl}`}
                   alt="프로필"
                   className={styles.avatarImg}
+                  style={{ cursor: 'zoom-in' }}
+                  onClick={() => setAvatarEnlarged(true)}
+                  title="클릭하여 크게 보기"
                 />
               ) : (
                 <div className={styles.avatar}>{user?.nickname?.[0] ?? '?'}</div>
@@ -182,6 +196,28 @@ function ProfileContent() {
                   </svg>
                 )}
               </button>
+              {/* 등록된 사진 제거(x) */}
+              {avatarUrl && !avatarUploading && (
+                <button
+                  className={styles.avatarRemoveBtn}
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  title="프로필 사진 제거"
+                  aria-label="프로필 사진 제거"
+                  style={{
+                    position: 'absolute', top: 0, right: 0,
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: 'var(--danger, #e5484d)', color: '#fff',
+                    border: '2px solid var(--bg-surface, #fff)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
             <p className={styles.avatarHint}>프로필 사진 변경</p>
             <input
@@ -252,7 +288,7 @@ function ProfileContent() {
                 />
                 <input
                   type="password"
-                  placeholder="새 비밀번호 (8자 이상)"
+                  placeholder="새 비밀번호"
                   className={styles.input}
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
@@ -288,6 +324,25 @@ function ProfileContent() {
           </form>
         </div>
       </div>
+
+      {/* 프로필 사진 확대 보기 */}
+      {avatarEnlarged && avatarUrl && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+          onClick={() => setAvatarEnlarged(false)}
+        >
+          <img
+            src={`${API_BASE}${avatarUrl}`}
+            alt="프로필"
+            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }}
+          />
+        </div>
+      )}
     </div>
   );
 }
