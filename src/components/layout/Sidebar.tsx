@@ -11,6 +11,7 @@ import { friendService } from '@/services/friend';
 import { userService } from '@/services/user';
 import { teamService } from '@/services/team';
 import { chatService, type DmRoom } from '@/services/chat';
+import { scheduleService, type ScheduleEvent } from '@/services/schedule';
 import { useChatNotifStore } from '@/store/chatNotifStore';
 import type { FriendItem } from '@/types/friend';
 import type { UserSearchResult } from '@/types/user';
@@ -22,6 +23,14 @@ import type { TeamItem } from '@/types/team';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 const ROLE_PRIORITY: Record<string, number> = { LEADER: 3, MANAGER: 2, MEMBER: 1 };
+
+// 일정 날짜 포맷 "MM/DD HH:mm"(qa 항목22)
+function fmtSchedule(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 // 팀 멤버 프로필 액션 컨텍스트(qa 항목17)
 type MemberCtx = { teamIdx: number; myRole: string; memberRole: string; userId: string; nickname: string };
@@ -60,6 +69,9 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   // 내 DM/그룹 채팅방 목록(qa 항목15)
   const [dmRooms, setDmRooms] = useState<DmRoom[]>([]);
   const unread = useChatNotifStore((s) => s.unread);
+
+  // 내 일정 목록(qa 항목22) — 팀/비팀 전부
+  const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
 
   // 팀 모달
   type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
@@ -114,6 +126,13 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   }, []);
   // 마운트 + 채팅 열림/닫힘 시 갱신(새 DM이 목록에 반영되도록)
   useEffect(() => { loadDmRooms(); }, [loadDmRooms, openChatIds]);
+
+  // 내 일정 로드(qa 항목22)
+  useEffect(() => {
+    scheduleService.getMySchedules()
+      .then(setSchedules)
+      .catch(() => setSchedules([]));
+  }, []);
 
   useEffect(() => {
     setTeamsLoading(true);
@@ -760,6 +779,45 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                   ))}
                 </>
               )}
+            </div>
+          )}
+          <div className={styles.sectionDivider} />
+        </div>
+
+        {/* ─── 일정(qa 항목22) ─── */}
+        <div>
+          <button className={styles.sectionHeader} onClick={() => toggleSection('schedules')}>
+            <span className={styles.sectionLabel}>일정</span>
+            <svg className={`${styles.sectionChevron} ${collapsedSections.has('schedules') ? '' : styles.sectionChevronOpen}`}
+              width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsedSections.has('schedules') && (
+            <div className={styles.itemList}>
+              {schedules.length === 0 && <div className={styles.loadingText}>일정이 없습니다.</div>}
+              {schedules.map(s => {
+                const past = new Date(s.date).getTime() < Date.now();
+                return (
+                  <div
+                    key={s.scheduleIdx}
+                    className={styles.channelRow}
+                    style={past ? { opacity: 0.4 } : undefined}
+                    title={`${s.title}${past ? ' (지난 일정)' : ''}`}
+                  >
+                    <div className={styles.channelItem} style={{ cursor: 'default' }}>
+                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.625rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                        {fmtSchedule(s.date)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className={styles.sectionDivider} />
