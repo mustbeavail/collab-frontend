@@ -6,6 +6,10 @@ export const teamService = {
   getMyTeams: () =>
     apiClient.get<ApiResponse<TeamItem[]>>('/api/teams/my').then((r) => r.data.data),
 
+  // 팀 정보 조회(qa 항목20 — 초대 알림에서 팀 정보 보기)
+  getTeamInfo: (teamIdx: number) =>
+    apiClient.get<ApiResponse<TeamItem>>(`/api/teams/${teamIdx}/info`).then((r) => r.data.data),
+
   createTeam: (data: CreateTeamRequest) =>
     apiClient.post<ApiResponse<TeamItem>>('/api/teams', data).then((r) => r.data.data),
 
@@ -41,4 +45,8 @@ export const teamService = {
 
   joinChannel: (teamIdx: number, roomIdx: number) =>
     apiClient.post<ApiResponse<TeamItem>>(`/api/teams/${teamIdx}/channels/${roomIdx}/join`).then((r) => r.data.data),
+
+  // 팀 채널 추가(qa 항목21)
+  createChannel: (teamIdx: number, roomName: string) =>
+    apiClient.post<ApiResponse<TeamItem>>(`/api/teams/${teamIdx}/channels`, { roomName }).then((r) => r.data.data),
 };

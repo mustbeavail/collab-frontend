@@ -7,6 +7,8 @@ import { useTeamStore } from '@/store/teamStore';
 import { friendService } from '@/services/friend';
 import { teamService } from '@/services/team';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
+import TeamInfoModal from '@/components/team/TeamInfoModal';
+import type { TeamItem } from '@/types/team';
 import styles from './NotificationBell.module.css';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -17,6 +19,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [profileTarget, setProfileTarget] = useState<ProfileTarget | null>(null);
+  const [viewingTeam, setViewingTeam] = useState<TeamItem | null>(null);
   const [readCount, setReadCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,14 +46,14 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (profileTarget) return;
+      if (profileTarget || viewingTeam) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [open, profileTarget]);
+  }, [open, profileTarget, viewingTeam]);
 
   const handleAcceptFriend = async (friendIdx: number) => {
     const req = pendingRequests.find((r) => r.friendIdx === friendIdx);
@@ -97,6 +100,16 @@ export default function NotificationBell() {
     setProfileTarget({ userId: req.userId, nickname: req.nickname, email: req.email });
   };
 
+  // 팀 초대 클릭 → 팀 정보 보기(qa 항목20)
+  const handleViewTeam = async (teamIdx: number) => {
+    try {
+      const team = await teamService.getTeamInfo(teamIdx);
+      setViewingTeam(team);
+    } catch {
+      // 조회 실패 무시
+    }
+  };
+
   const visibleFriends = activeTab === 'all' || activeTab === 'friend' ? pendingRequests : [];
   const visibleTeams   = activeTab === 'all' || activeTab === 'team'   ? teamInvitations : [];
   const visibleTotal   = visibleFriends.length + visibleTeams.length;
@@ -107,6 +120,12 @@ export default function NotificationBell() {
       <UserProfileModal
         user={profileTarget}
         onClose={() => setProfileTarget(null)}
+      />
+    )}
+    {viewingTeam && (
+      <TeamInfoModal
+        team={viewingTeam}
+        onClose={() => setViewingTeam(null)}
       />
     )}
     <div ref={containerRef} className={styles.container}>
@@ -192,11 +211,18 @@ export default function NotificationBell() {
 
               {visibleTeams.map((inv) => (
                 <div key={inv.tmIdx} className={styles.item}>
-                  <div className={styles.teamIcon}>
+                  <div
+                    className={`${styles.teamIcon} ${styles.avatarClickable}`}
+                    onClick={() => handleViewTeam(inv.teamIdx)}
+                    title="팀 정보 보기"
+                  >
                     {inv.teamName[0]}
                   </div>
                   <div className={styles.info}>
-                    <span className={styles.name}>{inv.teamName}</span>
+                    <span
+                      className={`${styles.name} ${styles.nameClickable}`}
+                      onClick={() => handleViewTeam(inv.teamIdx)}
+                    >{inv.teamName}</span>
                     <span className={styles.desc}>팀 초대가 왔습니다.</span>
                   </div>
                   <div className={styles.actions}>

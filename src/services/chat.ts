@@ -1,7 +1,21 @@
 import api from '@/lib/axios';
 import type { ChatRoomDetail, ChatRoomInfo, MessagePage, RoomMember } from '@/types/chat';
 
+export interface DmRoom {
+  roomIdx: number;
+  name: string;
+  dm: boolean;
+  targetUserId: string | null;
+  avatarUrl: string | null;
+}
+
 export const chatService = {
+  // 내 DM/그룹 채팅방 목록(qa 항목15)
+  getMyDmRooms: async (): Promise<DmRoom[]> => {
+    const res = await api.get('/api/chat/rooms/my');
+    return res.data.data;
+  },
+
   getMessages: async (roomIdx: number, before?: number, size = 50): Promise<MessagePage> => {
     const params: Record<string, unknown> = { size };
     if (before !== undefined) params.before = before;

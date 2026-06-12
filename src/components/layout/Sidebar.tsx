@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
 import type { ChatInfo } from '@/app/page';
@@ -10,6 +10,8 @@ import { useTeamStore } from '@/store/teamStore';
 import { friendService } from '@/services/friend';
 import { userService } from '@/services/user';
 import { teamService } from '@/services/team';
+import { chatService, type DmRoom } from '@/services/chat';
+import { useChatNotifStore } from '@/store/chatNotifStore';
 import type { FriendItem } from '@/types/friend';
 import type { UserSearchResult } from '@/types/user';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
@@ -18,6 +20,11 @@ import TeamInfoModal from '@/components/team/TeamInfoModal';
 import type { TeamItem } from '@/types/team';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+const ROLE_PRIORITY: Record<string, number> = { LEADER: 3, MANAGER: 2, MEMBER: 1 };
+
+// 팀 멤버 프로필 액션 컨텍스트(qa 항목17)
+type MemberCtx = { teamIdx: number; myRole: string; memberRole: string; userId: string; nickname: string };
 
 type MenuFriend  = { friend: FriendItem; x: number; y: number };
 type MenuTeam    = { teamIdx: number; name: string; x: number; y: number };
@@ -50,10 +57,17 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   // 내가 보낸 대기중 친구요청(qa 항목6)
   const [sentPending, setSentPending] = useState<FriendItem[]>([]);
 
+  // 내 DM/그룹 채팅방 목록(qa 항목15)
+  const [dmRooms, setDmRooms] = useState<DmRoom[]>([]);
+  const unread = useChatNotifStore((s) => s.unread);
+
   // 팀 모달
   type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
   const [teamModal,     setTeamModal]     = useState<TeamModalState | null>(null);
   const [viewingTeam,   setViewingTeam]   = useState<TeamItem | null>(null);
+  const [viewingTeamInvite, setViewingTeamInvite] = useState(false);
+  // 팀 멤버 프로필 액션(qa 항목17)
+  const [memberCtx,     setMemberCtx]     = useState<MemberCtx | null>(null);
 
   // 친구 추가 검색 패널
   const [friendAddOpen,   setFriendAddOpen]   = useState(false);
@@ -93,6 +107,13 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       .then(setSentPending)
       .catch(() => setSentPending([]));
   }, []);
+
+  // 내 DM/그룹 채팅방 목록 로드(qa 항목15)
+  const loadDmRooms = useCallback(() => {
+    chatService.getMyDmRooms().then(setDmRooms).catch(() => setDmRooms([]));
+  }, []);
+  // 마운트 + 채팅 열림/닫힘 시 갱신(새 DM이 목록에 반영되도록)
+  useEffect(() => { loadDmRooms(); }, [loadDmRooms, openChatIds]);
 
   useEffect(() => {
     setTeamsLoading(true);
@@ -179,6 +200,19 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     handleChatOpen({ id: `dm-${f.friendIdx}`, name: f.nickname, type: 'dm', targetUserId: f.userId });
   };
 
+  // 팀 채널 추가(qa 항목21)
+  const handleCreateChannel = async (teamIdx: number) => {
+    const name = prompt('새 채널 이름을 입력하세요');
+    if (!name || !name.trim()) return;
+    try {
+      const updated = await teamService.createChannel(teamIdx, name.trim());
+      updateTeamInStore(updated);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '채널 생성 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleCreateTeam = async (teamName: string, about: string) => {
     const created = await teamService.createTeam({ teamName, about: about || undefined });
     addTeam(created);
@@ -226,6 +260,64 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     }
   };
 
+  // ─── 팀 멤버 프로필 액션(qa 항목17) ───
+  const refreshTeam = async (teamIdx: number) => {
+    try {
+      const updated = await teamService.getMyTeams();
+      const found = updated.find((t) => t.teamIdx === teamIdx);
+      if (found) updateTeamInStore(found);
+    } catch { /* 무시 */ }
+  };
+
+  const closeMemberProfile = () => { setViewingUser(null); setMemberCtx(null); };
+
+  const handleKickMember = async (ctx: MemberCtx) => {
+    if (!confirm(`${ctx.nickname}님을 팀에서 추방하시겠습니까?`)) return;
+    try {
+      await teamService.kickMember(ctx.teamIdx, ctx.userId);
+      await refreshTeam(ctx.teamIdx);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '추방 중 오류가 발생했습니다.');
+    }
+    closeMemberProfile();
+  };
+
+  const handleDelegateLeader = async (ctx: MemberCtx) => {
+    if (!confirm(`${ctx.nickname}님에게 리더를 위임하시겠습니까? 본인은 매니저로 변경됩니다.`)) return;
+    try {
+      await teamService.changeRole(ctx.teamIdx, ctx.userId, 'LEADER');
+      await refreshTeam(ctx.teamIdx);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '권한 위임 중 오류가 발생했습니다.');
+    }
+    closeMemberProfile();
+  };
+
+  const buildMemberActions = (ctx: MemberCtx) => {
+    const actions: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    // 채팅하기(DM)
+    actions.push({
+      label: '채팅하기',
+      onClick: () => {
+        handleChatOpen({ id: `dm-u-${ctx.userId}`, name: ctx.nickname, type: 'dm', targetUserId: ctx.userId });
+        closeMemberProfile();
+      },
+    });
+    const myP = ROLE_PRIORITY[ctx.myRole] ?? 1;
+    const tP = ROLE_PRIORITY[ctx.memberRole] ?? 1;
+    // 리더 위임: 리더만, 대상이 리더가 아닐 때
+    if (ctx.myRole === 'LEADER' && ctx.memberRole !== 'LEADER') {
+      actions.push({ label: '리더 위임', onClick: () => handleDelegateLeader(ctx) });
+    }
+    // 추방: 리더/매니저가 자기보다 낮은 역할만
+    if ((ctx.myRole === 'LEADER' || ctx.myRole === 'MANAGER') && myP > tP) {
+      actions.push({ label: '추방', danger: true, onClick: () => handleKickMember(ctx) });
+    }
+    return actions;
+  };
+
   const handleDeleteFriend = async (friendIdx: number) => {
     if (!confirm('정말 친구를 삭제하시겠습니까?')) return;
     try {
@@ -257,6 +349,15 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     closeAllMenus();
     setMenuChannel({ id, ch, x: rect.right + 8, y: rect.top });
   };
+
+  // 미읽음 배지(qa 항목15)
+  const UnreadBadge = ({ n }: { n: number }) => (
+    <span style={{
+      marginLeft: 'auto', background: 'var(--danger, #e5484d)', color: '#fff',
+      fontSize: '0.625rem', fontWeight: 700, borderRadius: 9, padding: '0 5px',
+      minWidth: 16, textAlign: 'center',
+    }}>{n > 99 ? '99+' : n}</span>
+  );
 
   // 아바타: 사진 있으면 이미지, 없으면 닉네임 첫 글자(qa 항목9)
   const Avatar = ({ url, name, className }: { url?: string | null; name: string; className: string }) =>
@@ -327,6 +428,25 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                 {selectedTeams.has(team.teamIdx) && (
                   <div className={styles.teamBody}>
 
+                    {/* 멤버 추가 버튼(qa 항목13) — 리더/매니저만 */}
+                    {(team.myRole === 'LEADER' || team.myRole === 'MANAGER') && (
+                      <button
+                        onClick={() => { setViewingTeam(team); setViewingTeamInvite(true); }}
+                        title="멤버 추가"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          margin: '2px 0 4px', padding: '3px 6px',
+                          fontSize: '0.6875rem', color: 'var(--text-muted)',
+                          background: 'none', border: 'none', cursor: 'pointer',
+                        }}
+                      >
+                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        멤버 추가
+                      </button>
+                    )}
+
                     {/* 채팅방 카테고리 */}
                     <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.teamIdx}-channels`)}>
                       <svg className={`${styles.catChevron} ${openCategories.has(`${team.teamIdx}-channels`) ? styles.catChevronOpen : ''}`}
@@ -365,6 +485,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                               >
                                 <span className={styles.channelHash}>#</span>
                                 <span>{ch.roomName}</span>
+                                {unread[ch.roomIdx] > 0 && <UnreadBadge n={unread[ch.roomIdx]} />}
                               </button>
                               <button
                                 className={styles.dotBtn}
@@ -376,6 +497,16 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                             </div>
                           );
                         })}
+                        {/* 채널 추가(qa 항목21) */}
+                        <button
+                          className={styles.channelItem}
+                          onClick={() => handleCreateChannel(team.teamIdx)}
+                          title="채널 추가"
+                          style={{ color: 'var(--text-muted)', opacity: 0.8 }}
+                        >
+                          <span className={styles.channelHash}>+</span>
+                          <span>채널 추가</span>
+                        </button>
                       </div>
                     )}
 
@@ -394,7 +525,10 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                           <button
                             key={m.userId}
                             className={styles.memberItem}
-                            onClick={() => setViewingUser({ userId: m.userId, nickname: m.nickname, email: m.userId })}
+                            onClick={() => {
+                              setViewingUser({ userId: m.userId, nickname: m.nickname, email: m.userId });
+                              setMemberCtx({ teamIdx: team.teamIdx, myRole: team.myRole, memberRole: m.role, userId: m.userId, nickname: m.nickname });
+                            }}
                             title={`${m.nickname} 프로필 보기`}
                           >
                             <div className={styles.memberAvatarWrap}>
@@ -461,6 +595,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                       >
                         <span className={styles.channelHash}>#</span>
                         <span>{ch.roomName}</span>
+                        {unread[ch.roomIdx] > 0 && <UnreadBadge n={unread[ch.roomIdx]} />}
                       </button>
                       <button
                         className={styles.dotBtn}
@@ -473,6 +608,30 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                   );
                 })
               )}
+
+              {/* DM/그룹 채팅방 목록(qa 항목15) */}
+              {dmRooms.map(r => {
+                const id = r.dm ? `dm-u-${r.targetUserId}` : `room-${r.roomIdx}`;
+                const isOpen = openChatIds.includes(id);
+                return (
+                  <div key={`dm-${r.roomIdx}`} className={styles.channelRow}>
+                    <button
+                      className={[styles.channelItem, isOpen ? styles.channelItemOpen : ''].join(' ')}
+                      onClick={() => handleChatOpen(
+                        r.dm && r.targetUserId
+                          ? { id, name: r.name, type: 'dm', targetUserId: r.targetUserId }
+                          : { id, name: r.name, type: 'channel' }
+                      )}
+                    >
+                      {r.dm
+                        ? <Avatar url={r.avatarUrl} name={r.name} className={styles.friendAvatar} />
+                        : <span className={styles.channelHash}>#</span>}
+                      <span>{r.name}</span>
+                      {unread[r.roomIdx] > 0 && <UnreadBadge n={unread[r.roomIdx]} />}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className={styles.sectionDivider} />
@@ -773,9 +932,13 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     {viewingUser && (
       <UserProfileModal
         user={viewingUser}
-        onClose={() => setViewingUser(null)}
+        onClose={closeMemberProfile}
         onDm={'friendIdx' in viewingUser
-          ? () => { openFriendDm(viewingUser as FriendItem); setViewingUser(null); }
+          ? () => { openFriendDm(viewingUser as FriendItem); closeMemberProfile(); }
+          : undefined
+        }
+        actions={memberCtx && memberCtx.userId === viewingUser.userId
+          ? buildMemberActions(memberCtx)
           : undefined
         }
       />
@@ -784,10 +947,12 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     {viewingTeam && (
       <TeamInfoModal
         team={viewingTeam}
-        onClose={() => setViewingTeam(null)}
+        initialInviteOpen={viewingTeamInvite}
+        onClose={() => { setViewingTeam(null); setViewingTeamInvite(false); }}
         onEdit={() => {
           setTeamModal({ mode: 'edit', team: viewingTeam });
           setViewingTeam(null);
+          setViewingTeamInvite(false);
         }}
       />
     )}

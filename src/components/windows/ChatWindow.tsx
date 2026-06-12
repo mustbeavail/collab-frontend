@@ -11,6 +11,7 @@ import ChartPanel from '@/components/chat/ChartPanel';
 import styles from './ChatWindow.module.css';
 import type { ChatWindowState } from '@/app/page';
 import { useChatRoom } from '@/hooks/useChatRoom';
+import { useChatNotifStore } from '@/store/chatNotifStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
 import { useAuthStore } from '@/store/authStore';
@@ -166,6 +167,15 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   useEffect(() => {
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
+
+  // 방을 보고 있는 동안 openRooms 등록 → 미개방 알림(미읽음) 해제(qa 항목15)
+  const setRoomOpen = useChatNotifStore((s) => s.setOpen);
+  const unsetRoomOpen = useChatNotifStore((s) => s.unsetOpen);
+  useEffect(() => {
+    if (roomIdx == null || win.minimized) return;
+    setRoomOpen(roomIdx);
+    return () => unsetRoomOpen(roomIdx);
+  }, [roomIdx, win.minimized, setRoomOpen, unsetRoomOpen]);
 
   const isDmRoom = win.chat.type === 'dm';
   const myMember = roomMembers.find(m => m.userId === currentUserId);

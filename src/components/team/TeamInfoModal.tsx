@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styles from './TeamInfoModal.module.css';
 import type { TeamItem } from '@/types/team';
+import type { UserSearchResult } from '@/types/user';
 import { teamService } from '@/services/team';
+import { userService } from '@/services/user';
 import { useTeamStore } from '@/store/teamStore';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 const ROLE_LABEL: Record<string, string> = {
   LEADER: '리더',
@@ -23,9 +27,10 @@ interface Props {
   team: TeamItem;
   onClose: () => void;
   onEdit?: () => void;
+  initialInviteOpen?: boolean;
 }
 
-export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
+export default function TeamInfoModal({ team, onClose, onEdit, initialInviteOpen }: Props) {
   const updateTeamInStore = useTeamStore((s) => s.updateTeamInStore);
 
   const canEdit = team.myRole === 'LEADER' || team.myRole === 'MANAGER';
@@ -34,28 +39,43 @@ export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
   const myPriority = ROLE_PRIORITY[team.myRole] ?? 1;
 
   const [viewingProfile, setViewingProfile] = useState<ProfileTarget | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(initialInviteOpen ?? false);
+
+  // 친구검색식 멤버 초대(qa 항목14)
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const memberIds = new Set(team.members.map((m) => m.userId));
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchQ.trim()) { setSearchResults([]); return; }
+    searchTimerRef.current = setTimeout(() => {
+      setSearchLoading(true);
+      userService.searchUsers(searchQ.trim())
+        .then(setSearchResults)
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearchLoading(false));
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQ]);
 
   const openMemberProfile = (userId: string, nickname: string) => {
     setViewingProfile({ userId, nickname, email: userId });
   };
 
-  const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
-    setInviteLoading(true);
+  const handleInviteUser = async (targetUserId: string) => {
     setInviteError('');
     try {
-      await teamService.inviteMember(team.teamIdx, inviteEmail.trim());
-      setInviteEmail('');
-      setInviteOpen(false);
+      await teamService.inviteMember(team.teamIdx, targetUserId);
+      setInvitedIds((prev) => new Set([...prev, targetUserId]));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setInviteError(msg ?? '초대 중 오류가 발생했습니다.');
-    } finally {
-      setInviteLoading(false);
     }
   };
 
@@ -72,7 +92,11 @@ export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
+  const handleRoleChange = async (userId: string, nickname: string, currentRole: string, newRole: string) => {
+    if (newRole === currentRole) return;
+    // 권한 변경 시 강등/상승 상관없이 컨펌(qa 항목18)
+    const label = ROLE_LABEL[newRole] ?? newRole;
+    if (!confirm(`${nickname}님의 역할을 '${label}'(으)로 변경하시겠습니까?`)) return;
     try {
       const updated = await teamService.changeRole(team.teamIdx, userId, newRole);
       updateTeamInStore(updated);
@@ -136,26 +160,45 @@ export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
               )}
             </div>
 
-            {/* 초대 인라인 폼 */}
+            {/* 멤버 초대 — 친구검색식(qa 항목14): 이메일 직접입력 대신 검색해서 초대 */}
             {inviteOpen && (
-              <div className={styles.inviteForm}>
+              <div className={styles.inviteForm} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
                 <input
                   className={styles.inviteInput}
-                  type="email"
-                  placeholder="초대할 이메일 입력"
-                  value={inviteEmail}
-                  onChange={(e) => { setInviteEmail(e.target.value); setInviteError(''); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleInvite(); }}
+                  type="text"
+                  placeholder="닉네임 또는 이메일 검색"
+                  value={searchQ}
+                  onChange={(e) => { setSearchQ(e.target.value); setInviteError(''); }}
                   autoFocus
-                  disabled={inviteLoading}
                 />
-                <button
-                  className={styles.inviteSendBtn}
-                  onClick={handleInvite}
-                  disabled={inviteLoading || !inviteEmail.trim()}
-                >
-                  {inviteLoading ? '...' : '보내기'}
-                </button>
+                {searchLoading && <p className={styles.inviteHint}>검색 중...</p>}
+                {!searchLoading && searchQ.trim() && searchResults.length === 0 && (
+                  <p className={styles.inviteHint}>검색 결과가 없습니다.</p>
+                )}
+                {searchResults.map((u) => {
+                  const already = memberIds.has(u.userId);
+                  const invited = invitedIds.has(u.userId);
+                  return (
+                    <div key={u.userId} className={styles.inviteResultRow}>
+                      <div className={styles.inviteResultProfile}>
+                        {u.avatarUrl
+                          ? <img src={`${API_BASE}${u.avatarUrl}`} alt="" className={styles.inviteResultAvatar} />
+                          : <div className={styles.inviteResultAvatar}>{u.nickname[0]}</div>}
+                        <div className={styles.inviteResultInfo}>
+                          <span className={styles.inviteResultName}>{u.nickname}</span>
+                          <span className={styles.inviteResultEmail}>{u.userId}</span>
+                        </div>
+                      </div>
+                      {already ? (
+                        <span className={styles.inviteTag}>멤버</span>
+                      ) : invited ? (
+                        <span className={styles.inviteTag}>초대됨</span>
+                      ) : (
+                        <button className={styles.inviteSendBtn} onClick={() => handleInviteUser(u.userId)}>초대</button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {inviteError && <p className={styles.inviteError}>{inviteError}</p>}
@@ -184,7 +227,7 @@ export default function TeamInfoModal({ team, onClose, onEdit }: Props) {
                         <select
                           className={styles.roleSelect}
                           value={m.role}
-                          onChange={(e) => handleRoleChange(m.userId, e.target.value)}
+                          onChange={(e) => handleRoleChange(m.userId, m.nickname, m.role, e.target.value)}
                           title="역할 변경"
                         >
                           <option value="LEADER">리더</option>

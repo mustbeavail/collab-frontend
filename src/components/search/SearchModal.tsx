@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { searchService, type GlobalSearchResult } from '@/services/search';
+import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 import styles from './SearchModal.module.css';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 interface Props {
   onClose: () => void;
@@ -17,6 +20,7 @@ export default function SearchModal({ onClose }: Props) {
   const [tab, setTab] = useState<TabType>('all');
   const [result, setResult] = useState<GlobalSearchResult>(EMPTY);
   const [loading, setLoading] = useState(false);
+  const [profileTarget, setProfileTarget] = useState<ProfileTarget | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -45,6 +49,10 @@ export default function SearchModal({ onClose }: Props) {
   const rooms   = tab === 'all' || tab === 'room'   ? result.rooms   : [];
 
   return (
+    <>
+    {profileTarget && (
+      <UserProfileModal user={profileTarget} onClose={() => setProfileTarget(null)} />
+    )}
     <div className={styles.overlay} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={styles.modal}>
         <div className={styles.searchRow}>
@@ -95,17 +103,22 @@ export default function SearchModal({ onClose }: Props) {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>친구</div>
               {friends.map(f => (
-                <div key={f.userId} className={styles.item}>
+                <button
+                  key={f.userId}
+                  className={styles.item}
+                  onClick={() => setProfileTarget({ userId: f.userId, nickname: f.nickname, email: f.userId })}
+                  title="프로필 보기"
+                >
                   <div className={styles.avatar}>
                     {f.avatarUrl
-                      ? <img src={f.avatarUrl} alt="" className={styles.avatarImg} />
+                      ? <img src={`${API_BASE}${f.avatarUrl}`} alt="" className={styles.avatarImg} />
                       : f.nickname[0]}
                   </div>
                   <div className={styles.itemInfo}>
                     <span className={styles.itemName}>{f.nickname}</span>
                     <span className={styles.itemSub}>{f.userId}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -143,5 +156,6 @@ export default function SearchModal({ onClose }: Props) {
         </div>
       </div>
     </div>
+    </>
   );
 }

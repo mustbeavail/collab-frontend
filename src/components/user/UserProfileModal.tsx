@@ -13,10 +13,18 @@ export interface ProfileTarget {
   email: string;
 }
 
+export interface ProfileAction {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}
+
 interface Props {
   user: ProfileTarget;
   onClose: () => void;
   onDm?: () => void;
+  // 권한별 추가 액션(qa 항목17: 팀 멤버 추방/권한위임/채팅하기 등)
+  actions?: ProfileAction[];
 }
 
 function formatJoinAt(raw?: string): string {
@@ -26,7 +34,7 @@ function formatJoinAt(raw?: string): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
-export default function UserProfileModal({ user, onClose, onDm }: Props) {
+export default function UserProfileModal({ user, onClose, onDm, actions }: Props) {
   const [profile, setProfile] = useState<UserPublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [enlarged, setEnlarged] = useState(false);
@@ -113,6 +121,21 @@ export default function UserProfileModal({ user, onClose, onDm }: Props) {
             </svg>
             DM 채팅 열기
           </button>
+        )}
+
+        {actions && actions.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+            {actions.map((a, i) => (
+              <button
+                key={i}
+                className={styles.dmBtn}
+                onClick={a.onClick}
+                style={a.danger ? { background: 'var(--danger, #e5484d)', color: '#fff' } : undefined}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
