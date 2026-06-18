@@ -259,7 +259,7 @@ export default function TeamInfoModal({ team, onClose, onEdit, initialInviteOpen
 
           {/* 채널 */}
           <div className={styles.section}>
-            <p className={styles.sectionLabel}>채널 {team.channels.length}개</p>
+            <p className={styles.sectionLabel}>채팅방 {team.channels.length}개</p>
             <div className={styles.channelList}>
               {team.channels.map((ch) => (
                 <div key={ch.roomIdx} className={styles.channelRow}>

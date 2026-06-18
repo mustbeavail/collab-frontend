@@ -38,4 +38,5 @@ export interface ChatRoomDetail {
   roomName: string;
   createdAt: string;
   isDm: boolean;
+  teamIdx: number | null;
 }

@@ -147,7 +147,7 @@ export default function SearchModal({ onClose }: Props) {
                   </div>
                   <div className={styles.itemInfo}>
                     <span className={styles.itemName}>{r.roomName}</span>
-                    <span className={styles.itemSub}>{r.isDm ? 'DM' : '채널'}</span>
+                    <span className={styles.itemSub}>채팅방</span>
                   </div>
                 </div>
               ))}

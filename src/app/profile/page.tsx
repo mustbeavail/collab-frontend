@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/auth';
 import { userService } from '@/services/user';
 import AuthGuard from '@/components/auth/AuthGuard';
+import { StompProvider } from '@/providers/StompProvider';
 import styles from './profile.module.css';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -111,6 +112,10 @@ function ProfileContent() {
     }
     if (newPw && newPw !== newPwConfirm) {
       setSaveError('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (newPw && currentPw && newPw === currentPw) {
+      setSaveError('새 비밀번호가 현재 비밀번호와 동일합니다.');
       return;
     }
 
@@ -219,7 +224,13 @@ function ProfileContent() {
                 </button>
               )}
             </div>
-            <p className={styles.avatarHint}>프로필 사진 변경</p>
+            <p
+              className={styles.avatarHint}
+              onClick={() => fileInputRef.current?.click()}
+              style={{ cursor: 'pointer' }}
+            >
+              프로필 사진 변경
+            </p>
             <input
               ref={fileInputRef}
               type="file"
@@ -339,7 +350,14 @@ function ProfileContent() {
           <img
             src={`${API_BASE}${avatarUrl}`}
             alt="프로필"
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }}
+            style={{
+              // 통일된 고정 정사각 박스 + 비율유지(contain). 원본 크기와 무관하게 동일 크기로 확대.
+              width: 'min(90vw, 90vh, 420px)',
+              height: 'min(90vw, 90vh, 420px)',
+              borderRadius: 8,
+              objectFit: 'contain',
+              background: 'rgba(255,255,255,0.04)',
+            }}
           />
         </div>
       )}
@@ -350,7 +368,10 @@ function ProfileContent() {
 export default function ProfilePage() {
   return (
     <AuthGuard>
-      <ProfileContent />
+      {/* 편집 중에도 WS 연결을 유지해 접속 상태가 끊기지 않게 한다(버그 항목7). */}
+      <StompProvider>
+        <ProfileContent />
+      </StompProvider>
     </AuthGuard>
   );
 }

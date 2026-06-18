@@ -268,7 +268,8 @@
 
 /* 나가기 버튼 */
 .leaveBtn {
-  margin: 8px 12px 12px;
+  /* 우하단 크기조절 핸들(22px)과 겹치지 않게 하단 여백 확보(제대로안된것2) */
+  margin: 8px 12px 28px;
   padding: 7px 0; width: calc(100% - 24px);
   font-size: 0.8rem; color: #ff5050;
   background: rgba(255,80,80,0.08);

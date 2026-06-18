@@ -36,6 +36,11 @@ export const chatService = {
     await api.post(`/api/chat/rooms/${roomIdx}/leave`);
   },
 
+  // 팀 채팅방 삭제(팀 LEADER만)
+  deleteRoom: async (roomIdx: number): Promise<void> => {
+    await api.delete(`/api/chat/rooms/${roomIdx}`);
+  },
+
   kickMember: async (roomIdx: number, userId: string): Promise<void> => {
     await api.delete(`/api/chat/rooms/${roomIdx}/members/${encodeURIComponent(userId)}`);
   },

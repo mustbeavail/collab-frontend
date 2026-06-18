@@ -15,6 +15,7 @@ import { useChatNotifStore } from '@/store/chatNotifStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
 import { useAuthStore } from '@/store/authStore';
+import { useTeamStore } from '@/store/teamStore';
 import { userService } from '@/services/user';
 import { searchService, type RoomSearchResult } from '@/services/search';
 import type { ChatRoomDetail, RoomMember } from '@/types/chat';
@@ -123,6 +124,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
 
   const currentUserId   = useAuthStore((s) => s.user?.userId);
   const currentNickname = useAuthStore((s) => s.user?.nickname ?? '');
+  const teams           = useTeamStore((s) => s.teams);
   const [roomIdx, setRoomIdx] = useState<number | null>(null);
 
   useEffect(() => {
@@ -183,6 +185,9 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   }, [roomIdx, win.minimized, setRoomOpen, unsetRoomOpen]);
 
   const isDmRoom = win.chat.type === 'dm';
+  // 채팅방 일원화(버그 항목26/17): DM·그룹·팀채팅방 구분 없이 멤버 관리(초대/나가기) 노출.
+  // 권한 검증은 백엔드가 수행(팀채팅방 초대는 권한자만, 대상은 팀멤버 등).
+  const canManageMembers = true;
   const myMember = roomMembers.find(m => m.userId === currentUserId);
   const isOwner = myMember?.role === 'OWNER';
 
@@ -196,9 +201,10 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
       .finally(() => setMembersLoading(false));
   }, [panelMode, roomIdx]);
 
-  // 정보 패널 열릴 때 방 정보 로드
+  // 방 정보 로드 — 마운트(roomIdx) 시점에 로드해 teamIdx 등을 항상 확보(초대 검색 팀필터에 필요, 제대로안된것3).
+  // 정보 패널 열릴 때도 재로드(편집모드 초기화).
   useEffect(() => {
-    if (panelMode !== 'info' || !roomIdx) return;
+    if (!roomIdx) return;
     setInfoLoading(true);
     setEditMode(false);
     chatService.getRoomInfo(roomIdx)
@@ -222,12 +228,29 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   };
 
   // 초대 검색 디바운스
+  // 팀 채팅방이면 해당 팀의 팀원만 검색(제대로안된것3). 일반 채팅방이면 전체 유저 검색.
   useEffect(() => {
     if (inviteTimerRef.current) clearTimeout(inviteTimerRef.current);
-    if (!inviteQuery.trim()) { setInviteResults([]); return; }
+    const q = inviteQuery.trim();
+    if (!q) { setInviteResults([]); return; }
+
+    const teamIdx = roomInfo?.teamIdx ?? null;
+    if (teamIdx != null) {
+      // 팀 채팅방: teamStore의 팀원 중 검색(방 멤버 제외)
+      const team = teams.find(t => t.teamIdx === teamIdx);
+      const ql = q.toLowerCase();
+      const filtered = (team?.members ?? [])
+        .filter(m => m.nickname.toLowerCase().includes(ql) || m.userId.toLowerCase().includes(ql))
+        .filter(m => !roomMembers.some(rm => rm.userId === m.userId))
+        .map(m => ({ userId: m.userId, nickname: m.nickname, avatarUrl: m.avatarUrl ?? null }));
+      setInviteResults(filtered);
+      setInviteSearching(false);
+      return;
+    }
+
     inviteTimerRef.current = setTimeout(() => {
       setInviteSearching(true);
-      userService.searchUsers(inviteQuery.trim())
+      userService.searchUsers(q)
         .then(results => setInviteResults(
           results
             .filter(u => !roomMembers.some(m => m.userId === u.userId))
@@ -237,7 +260,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         .finally(() => setInviteSearching(false));
     }, 300);
     return () => { if (inviteTimerRef.current) clearTimeout(inviteTimerRef.current); };
-  }, [inviteQuery, roomMembers]);
+  }, [inviteQuery, roomMembers, roomInfo, teams]);
 
   const handleInvite = async (userId: string) => {
     if (!roomIdx) return;
@@ -247,7 +270,10 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
       const updated = await chatService.getMembers(roomIdx);
       setRoomMembers(updated);
       setInviteResults(prev => prev.filter(u => u.userId !== userId));
-    } catch { /* 실패 무시 */ }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? '초대에 실패했습니다.');
+    }
     finally { setInviting(null); }
   };
 
@@ -784,8 +810,8 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                   <span className={styles.memberPanelCount}>{roomMembers.length}</span>
                 </div>
 
-                {/* 초대 검색 (DM/그룹방만) */}
-                {isDmRoom && (
+                {/* 초대 검색 (모든 채팅방 — 권한은 백엔드 검증) */}
+                {canManageMembers && (
                   <div className={styles.inviteSection}>
                     <input
                       className={styles.inviteInput}
@@ -827,7 +853,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                             <span className={styles.memberPanelRole}>방장</span>
                           )}
                         </div>
-                        {isDmRoom && isOwner && m.userId !== currentUserId && (
+                        {isOwner && m.userId !== currentUserId && (
                           <button
                             className={styles.kickBtn}
                             title="내보내기"
@@ -843,7 +869,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                   }
                 </div>
 
-                {isDmRoom && (
+                {canManageMembers && (
                   <button className={styles.leaveBtn} onClick={handleLeave}>
                     채팅방 나가기
                   </button>
@@ -877,7 +903,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                     </div>
                     <div className={styles.infoRow}>
                       <span className={styles.infoLabel}>유형</span>
-                      <span className={styles.infoValue}>{roomInfo.isDm ? 'DM / 그룹' : '팀 채널'}</span>
+                      <span className={styles.infoValue}>채팅방</span>
                     </div>
                   </div>
                 )}

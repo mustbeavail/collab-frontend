@@ -196,7 +196,7 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
               </svg>
             </div>
             <p className={styles.emptyTitle}>채팅방을 선택하세요</p>
-            <p className={styles.emptyDesc}>왼쪽 메뉴에서 채널이나 친구를 선택해 대화를 시작하세요.</p>
+            <p className={styles.emptyDesc}>왼쪽 메뉴에서 채팅방이나 친구를 선택해 대화를 시작하세요.</p>
           </div>
         )}
 

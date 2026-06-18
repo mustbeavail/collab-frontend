@@ -180,7 +180,7 @@ export default function SignupPage() {
                 </svg>
               </div>
             </button>
-            <p className={styles.avatarHint}>프로필 사진 선택 (선택)</p>
+            <p className={styles.avatarHint} onClick={handleAvatarClick} style={{ cursor: 'pointer' }}>프로필 사진 선택</p>
             <input
               ref={fileInputRef}
               type="file"

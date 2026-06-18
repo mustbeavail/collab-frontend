@@ -119,7 +119,7 @@ export default function UserProfileModal({ user, onClose, onDm, actions }: Props
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            DM 채팅 열기
+            채팅 열기
           </button>
         )}
 
@@ -153,7 +153,14 @@ export default function UserProfileModal({ user, onClose, onDm, actions }: Props
           <img
             src={`${API_BASE}${profile.avatarUrl}`}
             alt={display.nickname}
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }}
+            style={{
+              // 통일된 고정 정사각 박스 + 비율유지(contain). 원본 크기와 무관하게 동일 크기.
+              width: 'min(90vw, 90vh, 420px)',
+              height: 'min(90vw, 90vh, 420px)',
+              borderRadius: 8,
+              objectFit: 'contain',
+              background: 'rgba(255,255,255,0.04)',
+            }}
           />
         </div>
       )}

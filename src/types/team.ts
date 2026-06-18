@@ -8,6 +8,8 @@ export interface TeamMemberItem {
   userId: string;
   nickname: string;
   role: string;
+  avatarUrl?: string | null;
+  online?: boolean;
 }
 
 export interface TeamItem {
