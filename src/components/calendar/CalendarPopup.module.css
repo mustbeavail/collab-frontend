@@ -108,10 +108,17 @@
 }
 
 .scheduleItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
   padding: 8px 10px;
   border-radius: 8px;
   transition: background-color 0.15s;
-  cursor: default;
+  cursor: pointer;
 }
 
 .scheduleItem:hover {

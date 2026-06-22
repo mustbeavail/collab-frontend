@@ -16,6 +16,7 @@ import { useChatNotifStore } from '@/store/chatNotifStore';
 import type { FriendItem } from '@/types/friend';
 import type { UserSearchResult } from '@/types/user';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
+import ScheduleDetailModal from '@/components/calendar/ScheduleDetailModal';
 import TeamModal from '@/components/team/TeamModal';
 import ChannelModal from '@/components/team/ChannelModal';
 import TeamInfoModal from '@/components/team/TeamInfoModal';
@@ -82,6 +83,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
 
   // 내 일정 목록(qa 항목22) — 팀/비팀 전부
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
+  const [detailEvent, setDetailEvent] = useState<ScheduleEvent | null>(null);
 
   // 팀 모달
   type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
@@ -952,7 +954,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                     style={past ? { opacity: 0.4 } : undefined}
                     title={`${s.title}${past ? ' (지난 일정)' : ''}`}
                   >
-                    <div className={styles.channelItem} style={{ cursor: 'default' }}>
+                    <button className={styles.channelItem} onClick={() => setDetailEvent(s)}>
                       <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -961,7 +963,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                       <span style={{ marginLeft: 'auto', fontSize: '0.625rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                         {fmtSchedule(s.date)}
                       </span>
-                    </div>
+                    </button>
                   </div>
                 );
               })}
@@ -1195,6 +1197,10 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
         </div>
       )}
     </aside>
+
+    {detailEvent && (
+      <ScheduleDetailModal event={detailEvent} onClose={() => setDetailEvent(null)} />
+    )}
 
     {viewingUser && (
       <UserProfileModal

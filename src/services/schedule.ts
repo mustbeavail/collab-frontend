@@ -19,8 +19,8 @@ export interface CreateSchedulePayload {
   participants?: string[];
   content?: string;
   location?: string;
-  lat?: number;
-  lng?: number;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface UpdateSchedulePayload {

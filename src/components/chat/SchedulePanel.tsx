@@ -2,18 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { scheduleService, ScheduleEvent } from '@/services/schedule';
-import KakaoMap, { openAddressSearch } from './KakaoMap';
+import KakaoMap from './KakaoMap';
+import ScheduleForm, { ScheduleFormValue } from './ScheduleForm';
 import styles from './SchedulePanel.module.css';
-
-interface EditData {
-  title: string;
-  date: string;
-  participants: string;
-  content: string;
-  location: string;
-  lat: number | null;
-  lng: number | null;
-}
 
 const DAYS_KO   = ['일', '월', '화', '수', '목', '금', '토'];
 const MONTHS_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -36,11 +27,7 @@ export default function SchedulePanel({
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
   const [addMode, setAddMode]   = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate]   = useState('');
-
   const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState<EditData | null>(null);
   const [saving, setSaving]     = useState(false);
 
   /* ── API 로드 ── */
@@ -100,7 +87,6 @@ export default function SchedulePanel({
   const selectEvent = (id: number) => {
     setSelectedEventId(prev => (prev === id ? null : id));
     setEditMode(false);
-    setEditData(null);
   };
 
   const handleCalDayClick = (dateStr: string) => {
@@ -109,69 +95,46 @@ export default function SchedulePanel({
   };
 
   /* ── 일정 추가 ── */
-  const addEvent = async () => {
-    if (!newTitle.trim() || !newDate || !roomIdx) return;
+  const handleCreate = async (v: ScheduleFormValue) => {
+    if (!roomIdx) return;
     setSaving(true);
     try {
-      const created = await scheduleService.createSchedule(roomIdx, {
-        title: newTitle.trim(),
-        date: newDate,
-      });
+      const created = await scheduleService.createSchedule(roomIdx, v);
       setEvents(prev => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
-      setNewTitle(''); setNewDate(''); setAddMode(false);
+      setAddMode(false);
     } catch {
-      /* 실패 시 무시 */
+      alert('일정 저장에 실패했습니다.');
     } finally {
       setSaving(false);
     }
   };
 
-  /* ── 일정 삭제 ── */
+  /* ── 일정 삭제 (컨펌, 항목6) ── */
   const deleteEvent = async (scheduleIdx: number) => {
+    if (!confirm('이 일정을 삭제하시겠습니까?')) return;
     try {
       await scheduleService.deleteSchedule(scheduleIdx);
       setEvents(prev => prev.filter(e => e.scheduleIdx !== scheduleIdx));
       if (selectedEventId === scheduleIdx) { setSelectedEventId(null); setEditMode(false); }
     } catch {
-      /* 실패 시 무시 */
+      alert('일정 삭제에 실패했습니다.');
     }
   };
 
-  /* ── 일정 수정 ── */
-  const startEdit = (e: ScheduleEvent) => {
-    setEditData({
-      title: e.title,
-      date: e.date,
-      participants: e.participants.join(', '),
-      content: e.content ?? '',
-      location: e.location ?? '',
-      lat: e.lat ?? null,
-      lng: e.lng ?? null,
-    });
-    setEditMode(true);
-  };
-  const cancelEdit = () => { setEditMode(false); setEditData(null); };
-
-  const saveEdit = async () => {
-    if (!editData || selectedEventId == null) return;
+  /* ── 일정 수정 (컨펌, 항목6) ── */
+  const handleUpdate = async (v: ScheduleFormValue) => {
+    if (selectedEventId == null) return;
+    if (!confirm('이 일정을 수정하시겠습니까?')) return;
     setSaving(true);
     try {
-      const updated = await scheduleService.updateSchedule(selectedEventId, {
-        title: editData.title,
-        date: editData.date,
-        participants: editData.participants.split(',').map(p => p.trim()).filter(Boolean),
-        content: editData.content,
-        location: editData.location,
-        lat: editData.lat ?? null,
-        lng: editData.lng ?? null,
-      });
+      const updated = await scheduleService.updateSchedule(selectedEventId, v);
       setEvents(prev =>
         prev.map(e => e.scheduleIdx === selectedEventId ? updated : e)
             .sort((a, b) => a.date.localeCompare(b.date))
       );
-      setEditMode(false); setEditData(null);
+      setEditMode(false);
     } catch {
-      /* 실패 시 무시 */
+      alert('일정 수정에 실패했습니다.');
     } finally {
       setSaving(false);
     }
@@ -179,13 +142,10 @@ export default function SchedulePanel({
 
   /* ── 포맷 ── */
   const formatDate = (dateStr: string) => {
-    // "yyyy-MM-ddTHH:mm" 형식
     const [datePart, timePart] = dateStr.split('T');
     const [, m, d] = datePart.split('-');
     return timePart ? `${parseInt(m)}월 ${parseInt(d)}일 ${timePart}` : `${parseInt(m)}월 ${parseInt(d)}일`;
   };
-
-  const toDateOnly = (dateStr: string) => dateStr.split('T')[0];
 
   const sortedEvents = [...events].sort((a, b) => a.date.localeCompare(b.date));
   const selectedEvent = selectedEventId != null
@@ -260,7 +220,7 @@ export default function SchedulePanel({
           <span className={styles.listTitle}>일정 목록</span>
           <button
             className={styles.addBtn}
-            onClick={() => setAddMode(v => !v)}
+            onClick={() => { setAddMode(v => !v); setSelectedEventId(null); }}
             title="일정 추가"
             disabled={!roomIdx}
           >
@@ -270,26 +230,14 @@ export default function SchedulePanel({
           </button>
         </div>
 
-        {addMode && (
-          <div className={styles.addForm}>
-            <input
-              className={styles.addInput}
-              placeholder="일정 제목"
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addEvent()}
-              autoFocus
-            />
-            <input className={styles.addInput} type="datetime-local" value={newDate} onChange={e => setNewDate(e.target.value)} />
-            <div className={styles.addFormBtns}>
-              <button className={styles.addFormSave} onClick={addEvent} disabled={saving}>
-                {saving ? '저장 중...' : '추가'}
-              </button>
-              <button className={styles.addFormCancel} onClick={() => { setAddMode(false); setNewTitle(''); setNewDate(''); }}>
-                취소
-              </button>
-            </div>
-          </div>
+        {addMode && roomIdx && (
+          <ScheduleForm
+            roomIdx={roomIdx}
+            saving={saving}
+            submitLabel="추가"
+            onSubmit={handleCreate}
+            onCancel={() => setAddMode(false)}
+          />
         )}
 
         <div className={styles.eventList}>
@@ -333,25 +281,10 @@ export default function SchedulePanel({
         {selectedEvent && (
           <div className={styles.detailSection}>
             <div className={styles.detailHeader}>
-              {editMode && editData ? (
-                <input
-                  className={styles.detailTitleInput}
-                  value={editData.title}
-                  onChange={e => setEditData(d => d && ({ ...d, title: e.target.value }))}
-                />
-              ) : (
-                <span className={styles.detailTitleText}>{selectedEvent.title}</span>
-              )}
+              <span className={styles.detailTitleText}>{selectedEvent.title}</span>
               <div className={styles.detailHeaderBtns}>
-                {editMode ? (
-                  <>
-                    <button className={styles.detailSaveBtn} onClick={saveEdit} disabled={saving}>
-                      {saving ? '저장 중...' : '저장'}
-                    </button>
-                    <button className={styles.detailCancelBtn} onClick={cancelEdit}>취소</button>
-                  </>
-                ) : (
-                  <button className={styles.detailEditBtn} onClick={() => startEdit(selectedEvent)}>수정</button>
+                {!editMode && (
+                  <button className={styles.detailEditBtn} onClick={() => setEditMode(true)}>수정</button>
                 )}
                 <button className={styles.detailCloseBtn} onClick={() => { setSelectedEventId(null); setEditMode(false); }}>
                   <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -361,123 +294,80 @@ export default function SchedulePanel({
               </div>
             </div>
 
-            {/* 지도 영역 */}
-            {!editMode && selectedEvent.lat && selectedEvent.lng ? (
-              <div className={styles.mapContainer}>
-                <KakaoMap lat={selectedEvent.lat} lng={selectedEvent.lng} />
-                {selectedEvent.location && (
-                  <div className={styles.mapAddressOverlay}>{selectedEvent.location}</div>
-                )}
-              </div>
-            ) : !editMode ? (
-              <div className={styles.mapPlaceholder}>
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.mapIcon}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span className={styles.mapLabel}>지도</span>
-                <span className={styles.mapEmpty}>위치 미설정</span>
-              </div>
-            ) : null}
-
-            {/* 세부 필드 */}
-            <div className={styles.detailFields}>
-              <div className={styles.detailField}>
-                <span className={styles.fieldLabel}>날짜</span>
-                {editMode && editData ? (
-                  <input
-                    className={styles.fieldInput}
-                    type="datetime-local"
-                    value={editData.date}
-                    onChange={e => setEditData(d => d && ({ ...d, date: e.target.value }))}
-                  />
-                ) : (
-                  <span className={styles.fieldValue}>{formatDate(selectedEvent.date)}</span>
-                )}
-              </div>
-
-              <div className={styles.detailField}>
-                <span className={styles.fieldLabel}>참여인원</span>
-                {editMode && editData ? (
-                  <input
-                    className={styles.fieldInput}
-                    placeholder="쉼표로 구분"
-                    value={editData.participants}
-                    onChange={e => setEditData(d => d && ({ ...d, participants: e.target.value }))}
-                  />
-                ) : (
-                  <div className={styles.participantChips}>
-                    {selectedEvent.participants.length > 0
-                      ? selectedEvent.participants.map(p => (
-                          <span key={p} className={styles.chip}>{p}</span>
-                        ))
-                      : <span className={styles.fieldEmpty}>없음</span>
-                    }
-                  </div>
-                )}
-              </div>
-
-              <div className={styles.detailField}>
-                <span className={styles.fieldLabel}>내용</span>
-                {editMode && editData ? (
-                  <textarea
-                    className={styles.fieldTextarea}
-                    value={editData.content}
-                    onChange={e => setEditData(d => d && ({ ...d, content: e.target.value }))}
-                    rows={3}
-                  />
-                ) : (
-                  <span className={styles.fieldValue}>
-                    {selectedEvent.content || <span className={styles.fieldEmpty}>없음</span>}
-                  </span>
-                )}
-              </div>
-
-              {editMode && editData && (
-                <div className={styles.detailField}>
-                  <span className={styles.fieldLabel}>위치</span>
-                  <div className={styles.locationSearchRow}>
-                    <button
-                      className={styles.locationSearchBtn}
-                      type="button"
-                      onClick={() => openAddressSearch((address, lat, lng) => {
-                        setEditData(d => d && ({ ...d, location: address, lat, lng }));
-                      })}
-                    >
-                      주소 검색
-                    </button>
-                    {editData.location ? (
-                      <>
-                        <span className={styles.locationText}>{editData.location}</span>
-                        <button
-                          className={styles.locationClearBtn}
-                          type="button"
-                          onClick={() => setEditData(d => d && ({ ...d, location: '', lat: null, lng: null }))}
-                          title="위치 삭제"
-                        >
-                          <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </>
-                    ) : (
-                      <span className={styles.locationEmpty}>미설정</span>
-                    )}
-                  </div>
-                  {editData.lat && editData.lng && (
-                    <div className={styles.mapContainerSmall}>
-                      <KakaoMap lat={editData.lat} lng={editData.lng} />
+            {editMode ? (
+              <ScheduleForm
+                roomIdx={roomIdx ?? 0}
+                saving={saving}
+                submitLabel="저장"
+                initial={{
+                  title: selectedEvent.title,
+                  date: selectedEvent.date,
+                  participants: selectedEvent.participants,
+                  content: selectedEvent.content ?? '',
+                  location: selectedEvent.location ?? '',
+                  lat: selectedEvent.lat ?? null,
+                  lng: selectedEvent.lng ?? null,
+                }}
+                onSubmit={handleUpdate}
+                onCancel={() => setEditMode(false)}
+              />
+            ) : (
+              <>
+                {/* 지도 영역 (주소는 지도 밑에 표기, 항목5) */}
+                {selectedEvent.lat && selectedEvent.lng ? (
+                  <>
+                    <div className={styles.mapContainer}>
+                      <KakaoMap lat={selectedEvent.lat} lng={selectedEvent.lng} />
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    {selectedEvent.location && (
+                      <div className={styles.mapAddressBelow}>📍 {selectedEvent.location}</div>
+                    )}
+                  </>
+                ) : (
+                  <div className={styles.mapPlaceholder}>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" className={styles.mapIcon}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className={styles.mapLabel}>지도</span>
+                    <span className={styles.mapEmpty}>위치 미설정</span>
+                  </div>
+                )}
 
-            {/* 작성자 */}
-            <div className={styles.detailField} style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
-              <span className={styles.fieldLabel}>작성자</span>
-              <span className={styles.fieldValue}>{selectedEvent.creatorNick}</span>
-            </div>
+                {/* 세부 필드 */}
+                <div className={styles.detailFields}>
+                  <div className={styles.detailField}>
+                    <span className={styles.fieldLabel}>날짜</span>
+                    <span className={styles.fieldValue}>{formatDate(selectedEvent.date)}</span>
+                  </div>
+
+                  <div className={styles.detailField}>
+                    <span className={styles.fieldLabel}>참여인원</span>
+                    <div className={styles.participantChips}>
+                      {selectedEvent.participants.length > 0
+                        ? selectedEvent.participants.map(p => (
+                            <span key={p} className={styles.chip}>{p}</span>
+                          ))
+                        : <span className={styles.fieldEmpty}>없음</span>
+                      }
+                    </div>
+                  </div>
+
+                  <div className={styles.detailField}>
+                    <span className={styles.fieldLabel}>내용</span>
+                    <span className={styles.fieldValue}>
+                      {selectedEvent.content || <span className={styles.fieldEmpty}>없음</span>}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 작성자 */}
+                <div className={styles.detailField} style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                  <span className={styles.fieldLabel}>작성자</span>
+                  <span className={styles.fieldValue}>{selectedEvent.creatorNick}</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

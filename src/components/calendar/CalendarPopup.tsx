@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { scheduleService, type ScheduleEvent } from '@/services/schedule';
+import ScheduleDetailModal from './ScheduleDetailModal';
 import styles from './CalendarPopup.module.css';
 
 interface Props {
@@ -29,6 +30,7 @@ export default function CalendarPopup({ onClose }: Props) {
   const [value, setValue] = useState<Value>(new Date());
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailEvent, setDetailEvent] = useState<ScheduleEvent | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,13 +42,14 @@ export default function CalendarPopup({ onClose }: Props) {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      if (detailEvent) return; // 상세 모달이 열려 있으면 팝업 유지
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  }, [onClose, detailEvent]);
 
   const selectedDate = value instanceof Date ? value : (Array.isArray(value) ? value[0] : null);
 
@@ -94,14 +97,23 @@ export default function CalendarPopup({ onClose }: Props) {
           </div>
         ) : (
           schedulesOnDate.map(s => (
-            <div key={s.scheduleIdx} className={styles.scheduleItem}>
+            <button
+              key={s.scheduleIdx}
+              className={styles.scheduleItem}
+              onClick={() => setDetailEvent(s)}
+              title="상세 보기"
+            >
               <div className={styles.scheduleTitle}>{s.title}</div>
               {s.date && <div className={styles.scheduleDate}>{formatDate(s.date)}</div>}
               {s.location && <div className={styles.scheduleLocation}>📍 {s.location}</div>}
-            </div>
+            </button>
           ))
         )}
       </div>
+
+      {detailEvent && (
+        <ScheduleDetailModal event={detailEvent} onClose={() => setDetailEvent(null)} />
+      )}
     </div>
   );
 }

@@ -253,6 +253,13 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+/* 주소 지도 밑 표기 (항목5) */
+.mapAddressBelow {
+  margin: -2px 12px 8px;
+  font-size: 0.74rem; color: var(--text-base);
+  word-break: keep-all;
+}
+
 /* 편집 모드 소형 지도 */
 .mapContainerSmall {
   height: 120px; border-radius: 7px;

@@ -70,7 +70,86 @@ export async function openAddressSearch(
   }).open();
 }
 
-/* ── 지도 컴포넌트 ── */
+/**
+ * 좌표 → 주소 역지오코딩(지도 클릭으로 위치 지정 시 사용).
+ * 실패 시 빈 문자열 반환.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  await loadKakaoSdk();
+  return new Promise((resolve) => {
+    const geocoder = new window.kakao.maps.services.Geocoder();
+    // coord2Address 인자 순서: (경도 x, 위도 y)
+    geocoder.coord2Address(lng, lat, (result: any[], status: string) => {
+      if (status === window.kakao.maps.services.Status.OK && result[0]) {
+        const r = result[0];
+        resolve(r.road_address?.address_name || r.address?.address_name || '');
+      } else {
+        resolve('');
+      }
+    });
+  });
+}
+
+const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 }; // 서울시청
+
+/* ── 위치 선택 지도(항상 표시, 클릭으로 지정) ── */
+interface KakaoLocationPickerProps {
+  lat: number | null;
+  lng: number | null;
+  onPick: (address: string, lat: number, lng: number) => void;
+  className?: string;
+}
+
+export function KakaoLocationPicker({ lat, lng, onPick, className }: KakaoLocationPickerProps) {
+  const ref       = useRef<HTMLDivElement>(null);
+  const mapRef    = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+
+  // 최초 1회 지도 생성 + 클릭 리스너 등록
+  useEffect(() => {
+    let cancelled = false;
+    loadKakaoSdk().then(() => {
+      if (cancelled || !ref.current || mapRef.current) return;
+      const hasPoint = lat != null && lng != null;
+      const center = new window.kakao.maps.LatLng(
+        hasPoint ? lat : DEFAULT_CENTER.lat,
+        hasPoint ? lng : DEFAULT_CENTER.lng,
+      );
+      const map = new window.kakao.maps.Map(ref.current, { center, level: 4 });
+      const marker = new window.kakao.maps.Marker({ position: center });
+      if (hasPoint) marker.setMap(map); // 좌표 있으면 마커 표시
+      mapRef.current = map;
+      markerRef.current = marker;
+
+      window.kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
+        const latlng = mouseEvent.latLng;
+        const la = latlng.getLat();
+        const ln = latlng.getLng();
+        marker.setPosition(latlng);
+        marker.setMap(map);
+        reverseGeocode(la, ln).then((addr) => onPickRef.current(addr, la, ln));
+      });
+    });
+    return () => { cancelled = true; };
+    // 최초 1회만 생성(좌표 동기화는 아래 effect가 담당)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 외부에서 좌표가 바뀌면(주소검색 결과 등) 지도/마커 동기화
+  useEffect(() => {
+    if (!mapRef.current || lat == null || lng == null) return;
+    const pos = new window.kakao.maps.LatLng(lat, lng);
+    mapRef.current.setCenter(pos);
+    markerRef.current.setPosition(pos);
+    markerRef.current.setMap(mapRef.current);
+  }, [lat, lng]);
+
+  return <div ref={ref} className={className} style={{ width: '100%', height: '100%' }} />;
+}
+
+/* ── 지도 컴포넌트(읽기 전용 표시) ── */
 interface KakaoMapProps {
   lat: number;
   lng: number;

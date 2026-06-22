@@ -1,0 +1,121 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated, rgba(255,255,255,0.02));
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text-base);
+  background: var(--bg-input, rgba(255,255,255,0.04));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+}
+.input:focus,
+.textarea:focus { border-color: var(--accent, #6366f1); }
+.textarea { resize: vertical; }
+
+/* 참여인원 칩 */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px 2px 8px;
+  font-size: 0.74rem;
+  color: var(--accent-light, #93c5fd);
+  background: rgba(99,102,241,0.15);
+  border-radius: 10px;
+}
+.chipRemove {
+  background: none; border: none; cursor: pointer;
+  color: inherit; font-size: 0.9rem; line-height: 1; padding: 0;
+}
+.chipRemove:hover { color: var(--danger, #e5484d); }
+
+.memberList {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  max-height: 96px; overflow-y: auto;
+}
+.memberItem {
+  padding: 4px 8px;
+  font-size: 0.76rem; font-family: inherit;
+  color: var(--text-base);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  border: 1px solid var(--border);
+  border-radius: 6px; cursor: pointer;
+}
+.memberItem:hover { border-color: var(--accent, #6366f1); color: var(--accent-light, #93c5fd); }
+.memberEmpty { font-size: 0.72rem; color: var(--text-muted); opacity: 0.7; }
+
+/* 위치 */
+.locationRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.locationSearchBtn {
+  padding: 5px 10px;
+  font-size: 0.76rem; font-family: inherit;
+  color: var(--accent-light, #93c5fd);
+  background: rgba(99,102,241,0.12);
+  border: 1px solid var(--accent, #6366f1);
+  border-radius: 6px; cursor: pointer; flex-shrink: 0;
+}
+.locationSearchBtn:hover { background: rgba(99,102,241,0.22); }
+.locationText { font-size: 0.78rem; color: var(--text-base); flex: 1; min-width: 0; }
+.locationEmpty { font-size: 0.74rem; color: var(--text-muted); opacity: 0.7; }
+.locationClear {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 1rem; line-height: 1; padding: 0 2px; flex-shrink: 0;
+}
+.locationClear:hover { color: var(--danger, #e5484d); }
+
+.mapBox {
+  width: 100%; height: 180px;
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+}
+
+/* 버튼 */
+.actions { display: flex; gap: 6px; margin-top: 2px; }
+.saveBtn {
+  flex: 1; padding: 8px;
+  font-size: 0.82rem; font-weight: 600; font-family: inherit;
+  color: #fff; background: var(--accent, #6366f1);
+  border: none; border-radius: 6px; cursor: pointer;
+}
+.saveBtn:hover { filter: brightness(1.1); }
+.saveBtn:disabled { opacity: 0.6; cursor: default; }
+.cancelBtn {
+  padding: 8px 14px;
+  font-size: 0.82rem; font-family: inherit;
+  color: var(--text-muted);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.cancelBtn:hover { color: var(--text-base); }
+
+/* react-datepicker 완료 버튼 */
+.dpDone {
+  display: flex; justify-content: flex-end;
+  padding: 6px; border-top: 1px solid #aeaeae;
+}
+.dpDoneBtn {
+  padding: 4px 14px;
+  font-size: 0.78rem; font-weight: 600; font-family: inherit;
+  color: #fff; background: #6366f1;
+  border: none; border-radius: 5px; cursor: pointer;
+}
+.dpPopper { z-index: 9999; }
