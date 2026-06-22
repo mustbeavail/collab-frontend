@@ -23,6 +23,7 @@ interface Props {
   onLoadMore?: () => void;
   currentUserId?: string;
   initialLoad?: React.MutableRefObject<boolean>;
+  deletedFileIdx?: Set<number>;
 }
 
 function formatTime(isoStr: string): string {
@@ -42,28 +43,66 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FileMessageBubble({ content }: { content: string }) {
+function FileMessageBubble({ content, canDelete, deletedFileIdx }: { content: string; canDelete?: boolean; deletedFileIdx?: Set<number> }) {
   let parsed: FileMessageContent | null = null;
   try { parsed = JSON.parse(content); } catch { return <p style={{ color: '#ef4444' }}>파일 정보를 불러올 수 없습니다.</p>; }
   if (!parsed) return null;
   const { fileIdx, oriFilename, fileSize } = parsed;
-  return (
-    <a
-      href={fileService.getDownloadUrl(fileIdx)}
-      download={oriFilename}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: '8px',
+  // 항목1(일정이후): 삭제된 파일이면 메시지는 남기되 안내만 표시(다운로드/삭제 버튼 없음)
+  const isDeleted = parsed.deleted === true || (deletedFileIdx?.has(fileIdx) ?? false);
+  if (isDeleted) {
+    return (
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: '6px',
         padding: '8px 12px', borderRadius: '8px',
-        background: 'var(--bg-secondary, #f1f5f9)', textDecoration: 'none', color: 'inherit',
-        border: '1px solid var(--border, #e2e8f0)',
-      }}
-    >
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-      </svg>
-      <span style={{ fontSize: '13px', fontWeight: 500 }}>{oriFilename}</span>
-      <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>{formatFileSize(fileSize)}</span>
-    </a>
+        background: 'var(--bg-secondary, #f1f5f9)', border: '1px dashed var(--border, #e2e8f0)',
+        color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', fontSize: '13px',
+      }}>
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        삭제된 파일입니다.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+      <button
+        type="button"
+        onClick={() => fileService.download(fileIdx, oriFilename).catch(() => alert('다운로드에 실패했습니다.'))}
+        title="다운로드"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+          background: 'var(--bg-secondary, #f1f5f9)', color: 'inherit',
+          border: '1px solid var(--border, #e2e8f0)', font: 'inherit',
+        }}
+      >
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        {/* 항목7: 파일명 또렷한 색 */}
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-light, #60a5fa)' }}>{oriFilename}</span>
+        <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>{formatFileSize(fileSize)}</span>
+      </button>
+      {/* 항목11/항목1: 메시지 옆 삭제 x (업로더만) → 파일 삭제(메시지는 '삭제된 파일'로 남음) */}
+      {canDelete && (
+        <button
+          type="button"
+          onClick={() => { if (confirm('이 파일을 삭제하시겠습니까?')) fileService.deleteFile(fileIdx).catch(() => alert('삭제에 실패했습니다.')); }}
+          title="파일 삭제"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer',
+            background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)',
+          }}
+        >
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -76,7 +115,7 @@ function TranslateIcon() {
   );
 }
 
-export default function MessageList({ messages, loading, loadingMore, hasMore, onLoadMore, currentUserId, initialLoad }: Props) {
+export default function MessageList({ messages, loading, loadingMore, hasMore, onLoadMore, currentUserId, initialLoad, deletedFileIdx }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
@@ -207,7 +246,11 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                   </div>
                 )}
                 {msg.msgType === 'FILE' ? (
-                  <FileMessageBubble content={msg.content} />
+                  <FileMessageBubble
+                    content={msg.content}
+                    canDelete={msg.userId === currentUserId}
+                    deletedFileIdx={deletedFileIdx}
+                  />
                 ) : (
                   <div className={styles.bubbleWrap}>
                     <p className={styles.content}>{msg.content}</p>

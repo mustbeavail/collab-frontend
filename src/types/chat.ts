@@ -13,6 +13,7 @@ export interface FileMessageContent {
   oriFilename: string;
   fileSize: number;
   fileExtension: string;
+  deleted?: boolean; // 항목1(일정이후): 파일 삭제 시 메시지는 남기고 '삭제된 파일' 표시
 }
 
 export interface MessagePage {

@@ -12,6 +12,7 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [deletedFileIdx, setDeletedFileIdx] = useState<Set<number>>(new Set());
   const initialLoad = useRef(true);
   const activeRef = useRef(active);
   const seenIds = useRef<Set<number>>(new Set());
@@ -35,6 +36,7 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     setLoading(true);
     setMessages([]);
     setHasMore(false);
+    setDeletedFileIdx(new Set());
     seenIds.current = new Set();
     chatService.getMessages(roomIdx)
       .then(({ messages: msgs, hasMore: more }) => {
@@ -53,6 +55,16 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     const sub = client.subscribe(`/topic/room/${roomIdx}`, (frame) => {
       try {
         const msg: ChatMessage = JSON.parse(frame.body);
+
+        // 파일 삭제 이벤트(항목1 추가): 메시지는 남기고 '삭제된 파일'로 표시 + 파일함 동기화
+        if (msg.msgType === 'FILE_DELETED') {
+          const fid = Number(msg.content);
+          if (!Number.isNaN(fid)) {
+            setDeletedFileIdx((prev) => { const next = new Set(prev); next.add(fid); return next; });
+            window.dispatchEvent(new CustomEvent('collab:file-deleted', { detail: { roomIdx, fileIdx: fid } }));
+          }
+          return;
+        }
 
         // 중복 메시지 dedup
         if (seenIds.current.has(msg.msgIdx)) return;
@@ -110,5 +122,5 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     });
   }, [client, roomIdx]);
 
-  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, initialLoad, unreadCount };
+  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, initialLoad, unreadCount };
 }

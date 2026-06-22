@@ -43,6 +43,18 @@ export default function FilePanel({ onClose, roomIdx, currentUserId }: Props) {
       .finally(() => setLoading(false));
   }, [roomIdx]);
 
+  // 항목1(일정이후): 메시지 x버튼/타 사용자 삭제 → FILE_DELETED 이벤트로 파일함 실시간 동기화
+  useEffect(() => {
+    const onFileDeleted = (e: Event) => {
+      const d = (e as CustomEvent).detail as { roomIdx: number; fileIdx: number } | undefined;
+      if (d && d.roomIdx === roomIdx) {
+        setFiles(prev => prev.filter(f => f.fileIdx !== d.fileIdx));
+      }
+    };
+    window.addEventListener('collab:file-deleted', onFileDeleted);
+    return () => window.removeEventListener('collab:file-deleted', onFileDeleted);
+  }, [roomIdx]);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !roomIdx) return;
@@ -117,16 +129,16 @@ export default function FilePanel({ onClose, roomIdx, currentUserId }: Props) {
                 </span>
               </div>
               <div className={styles.fileActions}>
-                <a
-                  href={fileService.getDownloadUrl(f.fileIdx)}
-                  download={f.oriFilename}
+                <button
+                  type="button"
                   className={styles.actionBtn}
                   title="다운로드"
+                  onClick={() => fileService.download(f.fileIdx, f.oriFilename).catch(() => alert('다운로드에 실패했습니다.'))}
                 >
                   <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                </a>
+                </button>
                 {f.uploaderId === currentUserId && (
                   <button
                     className={`${styles.actionBtn} ${styles.deleteBtn}`}

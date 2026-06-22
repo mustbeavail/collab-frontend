@@ -164,6 +164,19 @@
 .chatSection {
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; min-width: 0;
+  position: relative;
+}
+
+/* 항목9: 드래그앤드롭 업로드 오버레이 */
+.dropOverlay {
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 2px dashed var(--accent, #6366f1);
+  color: var(--accent-light, #93c5fd);
+  font-size: 0.9rem; font-weight: 600;
+  pointer-events: none;
 }
 
 /* 멤버 패널 슬라이드 */

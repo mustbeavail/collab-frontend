@@ -29,8 +29,16 @@ export const fileService = {
     await api.delete(`/api/files/${fileIdx}`);
   },
 
-  getDownloadUrl: (fileIdx: number): string => {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? '';
-    return `${base}/api/files/${fileIdx}/download`;
+  // 인증 헤더(Bearer)가 필요하므로 <a href> 직접 링크 대신 axios로 blob 다운로드(항목8: 401 수정)
+  download: async (fileIdx: number, filename: string): Promise<void> => {
+    const res = await api.get(`/api/files/${fileIdx}/download`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 };

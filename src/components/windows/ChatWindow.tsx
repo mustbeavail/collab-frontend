@@ -14,6 +14,7 @@ import { useChatRoom } from '@/hooks/useChatRoom';
 import { useChatNotifStore } from '@/store/chatNotifStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
+import { fileService } from '@/services/file';
 import { useAuthStore } from '@/store/authStore';
 import { useTeamStore } from '@/store/teamStore';
 import { userService } from '@/services/user';
@@ -175,8 +176,21 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     if (roomIdx != null) onResolveRoomIdxRef.current(roomIdx);
   }, [roomIdx]);
 
-  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, initialLoad, unreadCount } =
+  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, initialLoad, unreadCount } =
     useChatRoom(roomIdx, !win.minimized && isActive);
+
+  // 항목9: 채팅 영역 드래그앤드롭 업로드 (항목2: 카운터로 오버레이 잔존 방지)
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (!roomIdx || files.length === 0) return;
+    for (const file of files) {
+      try {
+        const uploaded = await fileService.upload(roomIdx, file);
+        sendFileMessage(uploaded.fileIdx, uploaded.oriFilename, uploaded.fileSize, uploaded.fileExtension);
+      } catch { alert(`${file.name} 업로드에 실패했습니다.`); }
+    }
+  }, [roomIdx, sendFileMessage]);
 
   // 미읽음 카운트를 부모로 전달.
   // onUnreadChange는 부모(ChatArea)에서 인라인 화살표로 생성돼 매 렌더 식별자가 바뀐다.
@@ -710,7 +724,24 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
 
       {/* 콘텐츠 + 사이드 패널 */}
       <div className={styles.contentRow}>
-        <div className={styles.chatSection}>
+        <div
+          className={styles.chatSection}
+          onDragEnter={(e) => {
+            if (!roomIdx) return;
+            if (Array.from(e.dataTransfer.types).includes('Files')) { dragCounter.current++; setDragOver(true); }
+          }}
+          onDragOver={(e) => { if (roomIdx) e.preventDefault(); }}
+          onDragLeave={() => { dragCounter.current = Math.max(0, dragCounter.current - 1); if (dragCounter.current === 0) setDragOver(false); }}
+          onDrop={(e) => { e.preventDefault(); dragCounter.current = 0; setDragOver(false); uploadFiles(Array.from(e.dataTransfer.files)); }}
+        >
+          {dragOver && (
+            <div className={styles.dropOverlay}>
+              <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12" />
+              </svg>
+              <span>여기에 파일을 놓아 업로드</span>
+            </div>
+          )}
           <MessageList
             messages={messages}
             loading={loading}
@@ -719,6 +750,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
             onLoadMore={loadMore}
             currentUserId={currentUserId}
             initialLoad={initialLoad}
+            deletedFileIdx={deletedFileIdx}
           />
 
           {/* 음성 채팅 패널 */}
