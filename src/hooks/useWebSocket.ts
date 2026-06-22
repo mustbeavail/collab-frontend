@@ -24,6 +24,7 @@ interface NotificationPayload {
   // 새 메시지(NEW_MESSAGE)
   roomIdx?: number;
   content?: string;
+  roomName?: string;
 }
 
 export function useWebSocket() {
@@ -31,6 +32,8 @@ export function useWebSocket() {
   const addRequest = useNotificationStore((s) => s.addRequest);
   const addTeamInvitation = useNotificationStore((s) => s.addTeamInvitation);
   const bumpUnread = useChatNotifStore((s) => s.bump);
+  const pushMessageNotif = useChatNotifStore((s) => s.pushMessageNotif);
+  const markRoomListDirty = useChatNotifStore((s) => s.markRoomListDirty);
   const clear = useAuthStore((s) => s.clear);
   const setUserOnline = useFriendStore((s) => s.setUserOnline);
   const setUserOffline = useFriendStore((s) => s.setUserOffline);
@@ -61,6 +64,14 @@ export function useWebSocket() {
         } else if (payload.type === 'NEW_MESSAGE' && payload.roomIdx != null) {
           // 미개방 방 메시지 알림(qa 항목15): 미읽음 증가 + 브라우저 알림
           bumpUnread(payload.roomIdx);
+          // 헤더 알림벨에도 반영(I-3)
+          pushMessageNotif({
+            roomIdx: payload.roomIdx,
+            roomName: payload.roomName ?? payload.nickname ?? '채팅방',
+            senderNick: payload.nickname ?? '',
+            preview: payload.content ?? '',
+          });
+          markRoomListDirty(); // 새 채팅방이 생겼을 수 있으므로 목록 갱신 신호(E(8))
           if (typeof window !== 'undefined' && 'Notification' in window
               && Notification.permission === 'granted' && document.hidden) {
             new Notification(`새 메시지 — ${payload.nickname ?? ''}`, {
@@ -68,6 +79,12 @@ export function useWebSocket() {
               tag: `chat-${payload.roomIdx}`,
             });
           }
+        } else if (payload.type === 'ROOM_RENAMED' && payload.roomIdx != null) {
+          // 채팅방 이름 변경 실시간 반영(I-13) — Sidebar 목록 + 열린 창 갱신
+          markRoomListDirty();
+          window.dispatchEvent(new CustomEvent('collab:room-renamed', {
+            detail: { roomIdx: payload.roomIdx, roomName: payload.roomName ?? '' },
+          }));
         } else if (payload.type === 'USER_STATUS' && payload.userId) {
           if (payload.status === 'ONLINE') setUserOnline(payload.userId);
           else setUserOffline(payload.userId);
@@ -90,5 +107,5 @@ export function useWebSocket() {
       notifSub.unsubscribe();
       sessionSub.unsubscribe();
     };
-  }, [client, addRequest, addTeamInvitation, bumpUnread, clear, setUserOnline, setUserOffline, router]);
+  }, [client, addRequest, addTeamInvitation, bumpUnread, pushMessageNotif, markRoomListDirty, clear, setUserOnline, setUserOffline, router]);
 }

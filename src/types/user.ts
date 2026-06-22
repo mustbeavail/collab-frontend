@@ -12,4 +12,7 @@ export interface UserPublicProfile {
   about?: string;
   avatarUrl?: string;
   joinAt?: string;
+  withdrawn?: boolean;
+  // NONE | SELF | FRIEND | SENT | RECEIVED (I-1)
+  friendStatus?: string;
 }

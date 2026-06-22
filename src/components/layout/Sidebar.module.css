@@ -53,6 +53,27 @@
 }
 .sectionChevronOpen { transform: rotate(0deg); }
 
+/* I-15: 채팅방 패널 인원수 카테고리(DM/단톡방/휴면) 소제목 */
+.subSectionHeader {
+  display: flex; align-items: center; gap: 5px;
+  width: 100%; padding: 4px 8px 2px; margin-top: 2px;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.subSectionHeader:hover { opacity: 0.8; }
+.subSectionLabel {
+  color: var(--text-muted); font-size: 0.68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.subSectionCount {
+  color: var(--text-muted); opacity: 0.65; font-size: 0.66rem; font-weight: 500;
+}
+.subSectionChevron {
+  color: var(--text-muted); flex-shrink: 0;
+  transition: transform 0.2s ease; transform: rotate(-90deg);
+}
+.subSectionChevronOpen { transform: rotate(0deg); }
+
 .itemList { display: flex; flex-direction: column; gap: 2px; }
 
 /* 팀 행 래퍼 */

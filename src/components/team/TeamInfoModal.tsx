@@ -183,7 +183,7 @@ export default function TeamInfoModal({ team, onClose, onEdit, initialInviteOpen
                       <div className={styles.inviteResultProfile}>
                         {u.avatarUrl
                           ? <img src={`${API_BASE}${u.avatarUrl}`} alt="" className={styles.inviteResultAvatar} />
-                          : <div className={styles.inviteResultAvatar}>{u.nickname[0]}</div>}
+                          : <div className={styles.inviteResultAvatar}>{u.nickname?.[0] ?? '?'}</div>}
                         <div className={styles.inviteResultInfo}>
                           <span className={styles.inviteResultName}>{u.nickname}</span>
                           <span className={styles.inviteResultEmail}>{u.userId}</span>
@@ -218,7 +218,7 @@ export default function TeamInfoModal({ team, onClose, onEdit, initialInviteOpen
                       onClick={() => openMemberProfile(m.userId, m.nickname)}
                       title={`${m.nickname} 프로필 보기`}
                     >
-                      <div className={styles.memberAvatar}>{m.nickname[0]}</div>
+                      <div className={styles.memberAvatar}>{m.nickname?.[0] ?? '?'}</div>
                       <span className={styles.memberName}>{m.nickname}</span>
                     </button>
 

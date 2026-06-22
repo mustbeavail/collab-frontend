@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import Link from 'next/link';
 import styles from './Sidebar.module.css';
 import type { ChatInfo } from '@/app/page';
@@ -38,7 +38,11 @@ type MemberCtx = { teamIdx: number; myRole: string; memberRole: string; userId: 
 
 type MenuFriend  = { friend: FriendItem; x: number; y: number };
 type MenuTeam    = { teamIdx: number; name: string; x: number; y: number };
-type MenuChannel = { id: string; ch: string; roomIdx: number; canDelete: boolean; joined: boolean; x: number; y: number };
+type MenuChannel = { id: string; ch: string; roomIdx: number; canDelete: boolean; canRename: boolean; joined: boolean; x: number; y: number };
+
+// I-15: 인원수 색점 폐기 → 채팅방 패널을 인원수별 카테고리(DM/단톡방/휴면)로 세분화.
+// 카테고리 기준(인원수)은 기존 색 구분과 동일: 2인=DM, 3인↑=단톡방, 1인 이하=휴면.
+const chatCategoryKey = (n: number) => (n >= 3 ? 'group' : n === 2 ? 'dm' : 'idle');
 
 interface Props {
   openChatIds: string[];
@@ -49,7 +53,7 @@ interface Props {
 export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Props) {
   const user = useAuthStore((s) => s.user);
   const { friends, onlineUsers, loading: friendsLoading, setFriends, removeFriend, setUserOnline, setLoading: setFriendsLoading } = useFriendStore();
-  const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading, addTeam, updateTeamInStore, removeTeam } = useTeamStore();
+  const { teams, loading: teamsLoading, setTeams, setLoading: setTeamsLoading, addTeam, updateTeamInStore, removeTeam, removeChannelFromTeam } = useTeamStore();
 
   const [selectedTeams,     setSelectedTeams]     = useState<Set<number>>(new Set<number>());
   const [openCategories,    setOpenCategories]    = useState<Set<string>>(new Set<string>());
@@ -72,6 +76,9 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   // 내 DM/그룹 채팅방 목록(qa 항목15)
   const [dmRooms, setDmRooms] = useState<DmRoom[]>([]);
   const unread = useChatNotifStore((s) => s.unread);
+  const justLeftRoomIdx = useChatNotifStore((s) => s.justLeftRoomIdx);
+  const clearLeft = useChatNotifStore((s) => s.clearLeft);
+  const roomListDirty = useChatNotifStore((s) => s.roomListDirty);
 
   // 내 일정 목록(qa 항목22) — 팀/비팀 전부
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
@@ -80,6 +87,8 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   type TeamModalState = { mode: 'create' } | { mode: 'edit'; team: TeamItem };
   const [teamModal,     setTeamModal]     = useState<TeamModalState | null>(null);
   const [channelModalTeam, setChannelModalTeam] = useState<number | null>(null);
+  // 채팅방 이름변경 모달(I-13)
+  const [renameModal, setRenameModal] = useState<{ roomIdx: number; current: string } | null>(null);
   const [viewingTeam,   setViewingTeam]   = useState<TeamItem | null>(null);
   const [viewingTeamInvite, setViewingTeamInvite] = useState(false);
   // 팀 멤버 프로필 액션(qa 항목17)
@@ -128,6 +137,21 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   }, []);
   // 마운트 + 채팅 열림/닫힘 시 갱신(새 DM이 목록에 반영되도록)
   useEffect(() => { loadDmRooms(); }, [loadDmRooms, openChatIds]);
+
+  // 새 메시지 알림 시 채팅방 목록 갱신 — 아직 목록에 없는 방(초대받은 방)이 있을 수 있으므로(E(8))
+  useEffect(() => { if (roomListDirty > 0) loadDmRooms(); }, [roomListDirty, loadDmRooms]);
+
+  // ChatWindow 나가기 신호 → 채팅방패널·팀패널 즉시 제거
+  useEffect(() => {
+    if (justLeftRoomIdx == null) return;
+    setDmRooms(prev => prev.filter(r => r.roomIdx !== justLeftRoomIdx));
+    teams.forEach(t => {
+      if (t.channels.some(ch => ch.roomIdx === justLeftRoomIdx)) {
+        removeChannelFromTeam(t.teamIdx, justLeftRoomIdx);
+      }
+    });
+    clearLeft();
+  }, [justLeftRoomIdx, clearLeft, removeChannelFromTeam, teams]);
 
   // 내 일정 로드(qa 항목22)
   useEffect(() => {
@@ -291,6 +315,10 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     closeAllMenus();
     try {
       await chatService.leaveRoom(roomIdx);
+      // 즉시 목록에서 제거
+      setDmRooms(prev => prev.filter(r => r.roomIdx !== roomIdx));
+      const teamMatch = chatId.match(/^channel-(\d+)-\d+$/);
+      if (teamMatch) removeChannelFromTeam(parseInt(teamMatch[1]), roomIdx);
       // 열려 있으면 닫기
       if (openChatIds.includes(chatId)) onChatOpen({ id: chatId, name: '', type: 'channel' }); // 토글 닫기
       loadDmRooms();
@@ -388,11 +416,11 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     setMenuTeam({ teamIdx, name, x: rect.right + 8, y: rect.top });
   };
 
-  const openChannelMenu = (id: string, ch: string, roomIdx: number, canDelete: boolean, joined: boolean, e: React.MouseEvent) => {
+  const openChannelMenu = (id: string, ch: string, roomIdx: number, canDelete: boolean, canRename: boolean, joined: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     closeAllMenus();
-    setMenuChannel({ id, ch, roomIdx, canDelete, joined, x: rect.right + 8, y: rect.top });
+    setMenuChannel({ id, ch, roomIdx, canDelete, canRename, joined, x: rect.right + 8, y: rect.top });
   };
 
   // 팀 채팅방 삭제(팀 LEADER만, 버그 추가요청)
@@ -411,6 +439,33 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
     }
   };
 
+  // 채팅방 이름변경(I-13) — 모든 패널 목록·열린 창에 반영
+  const applyRoomRename = useCallback((roomIdx: number, newName: string) => {
+    // 이름변경 이벤트가 왔다는 건 custom_name이 된 것 → DM(2인) 포함 해당 방 표시명 갱신
+    setDmRooms(prev => prev.map(r => (r.roomIdx === roomIdx ? { ...r, name: newName } : r)));
+    // 팀 채널 이름 갱신
+    teams.forEach(t => {
+      if (t.channels.some(ch => ch.roomIdx === roomIdx)) {
+        updateTeamInStore({ ...t, channels: t.channels.map(ch => ch.roomIdx === roomIdx ? { ...ch, roomName: newName } : ch) });
+      }
+    });
+  }, [teams, updateTeamInStore]);
+
+  const handleRenameRoom = async (roomIdx: number, newName: string) => {
+    await chatService.updateRoomInfo(roomIdx, newName); // OWNER 아니면 백엔드 403
+    applyRoomRename(roomIdx, newName); // 즉시 반영(실시간 이벤트도 옴)
+  };
+
+  // 다른 사용자의 이름변경 실시간 반영(I-13)
+  useEffect(() => {
+    const onRenamed = (e: Event) => {
+      const d = (e as CustomEvent).detail as { roomIdx: number; roomName: string } | undefined;
+      if (d) applyRoomRename(d.roomIdx, d.roomName);
+    };
+    window.addEventListener('collab:room-renamed', onRenamed);
+    return () => window.removeEventListener('collab:room-renamed', onRenamed);
+  }, [applyRoomRename]);
+
   // 미읽음 배지(qa 항목15)
   const UnreadBadge = ({ n }: { n: number }) => (
     <span style={{
@@ -421,11 +476,11 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
   );
 
   // 아바타: 사진 있으면 이미지, 없으면 닉네임 첫 글자(qa 항목9)
-  const Avatar = ({ url, name, className }: { url?: string | null; name: string; className: string }) =>
+  const Avatar = ({ url, name, className }: { url?: string | null; name?: string | null; className: string }) =>
     url ? (
-      <img className={className} src={`${API_BASE}${url}`} alt={name} style={{ objectFit: 'cover' }} />
+      <img className={className} src={`${API_BASE}${url}`} alt={name ?? ''} style={{ objectFit: 'cover' }} />
     ) : (
-      <div className={className}>{name[0]}</div>
+      <div className={className}>{name?.[0] ?? '?'}</div>
     );
 
   const DotsIcon = () => (
@@ -539,7 +594,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                                 {team.myRole === 'LEADER' && (
                                   <button
                                     className={styles.dotBtn}
-                                    onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, true, false, e)}
+                                    onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, true, ch.owner, false, e)}
                                     title="채팅방 메뉴"
                                   >
                                     <DotsIcon />
@@ -560,7 +615,7 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                               </button>
                               <button
                                 className={styles.dotBtn}
-                                onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, team.myRole === 'LEADER', true, e)}
+                                onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, team.myRole === 'LEADER', ch.owner, true, e)}
                                 title="채팅방 메뉴"
                               >
                                 <DotsIcon />
@@ -651,68 +706,100 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
-          {!collapsedSections.has('channels') && (
-            <div className={styles.itemList}>
-              {teams.flatMap(team =>
-                team.channels.filter(ch => ch.joined).map(ch => {
-                  const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
-                  const isOpen    = openChatIds.includes(id);
-                  const isShaking = shakingChatId === id;
-                  return (
-                    <div key={id} className={styles.channelRow}>
-                      <button
-                        className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
-                        onClick={() => handleChatOpen({ id, name: ch.roomName, type: 'channel' })}
-                      >
-                        <span className={styles.channelHash}>#</span>
-                        <span>{ch.roomName}</span>
-                        {unread[ch.roomIdx] > 0 && <UnreadBadge n={unread[ch.roomIdx]} />}
-                      </button>
-                      <button
-                        className={styles.dotBtn}
-                        onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, team.myRole === 'LEADER', true, e)}
-                        title="채팅방 메뉴"
-                      >
-                        <DotsIcon />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
+          {!collapsedSections.has('channels') && (() => {
+            // I-15: 채팅방 패널의 모든 방(참가한 팀 채널 + DM/그룹)을 인원수로 카테고리 분류.
+            // 색점은 폐기하고 DM(2인)/단톡방(3인↑)/휴면(1인 이하) 접기형 소제목으로 세분화한다.
+            type ChatRow = { roomIdx: number; memberCount: number; node: ReactNode };
+            const rows: ChatRow[] = [];
 
-              {/* 채팅방(DM/그룹) 목록(qa 항목15) */}
-              {dmRooms.map(r => {
-                const id = r.dm ? `dm-u-${r.targetUserId}` : `room-${r.roomIdx}`;
-                const isOpen = openChatIds.includes(id);
-                return (
-                  <div key={`dm-${r.roomIdx}`} className={styles.channelRow}>
+            teams.forEach(team =>
+              team.channels.filter(ch => ch.joined).forEach(ch => {
+                const id = `channel-${team.teamIdx}-${ch.roomIdx}`;
+                const isOpen    = openChatIds.includes(id);
+                const isShaking = shakingChatId === id;
+                rows.push({ roomIdx: ch.roomIdx, memberCount: ch.memberCount, node: (
+                  <div key={id} className={styles.channelRow}>
                     <button
-                      className={[styles.channelItem, isOpen ? styles.channelItemOpen : ''].join(' ')}
-                      onClick={() => handleChatOpen(
-                        r.dm && r.targetUserId
-                          ? { id, name: r.name, type: 'dm', targetUserId: r.targetUserId }
-                          : { id, name: r.name, type: 'channel' }
-                      )}
+                      className={[styles.channelItem, isOpen ? styles.channelItemOpen : '', isShaking ? styles.shaking : ''].join(' ')}
+                      onClick={() => handleChatOpen({ id, name: ch.roomName, type: 'channel' })}
                     >
-                      {r.dm
-                        ? <Avatar url={r.avatarUrl} name={r.name} className={styles.friendAvatar} />
-                        : <span className={styles.channelHash}>#</span>}
-                      <span>{r.name}</span>
-                      {unread[r.roomIdx] > 0 && <UnreadBadge n={unread[r.roomIdx]} />}
+                      <span className={styles.channelHash}>#</span>
+                      <span>{ch.roomName}</span>
+                      {unread[ch.roomIdx] > 0 && <UnreadBadge n={unread[ch.roomIdx]} />}
                     </button>
-                    {/* 일반 채팅방 점세개 메뉴(버그 항목18) */}
                     <button
                       className={styles.dotBtn}
-                      onClick={e => openChannelMenu(id, r.name, r.roomIdx, false, true, e)}
+                      onClick={e => openChannelMenu(id, ch.roomName, ch.roomIdx, team.myRole === 'LEADER', ch.owner, true, e)}
                       title="채팅방 메뉴"
                     >
                       <DotsIcon />
                     </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ) });
+              })
+            );
+
+            // 채팅방(DM/그룹) 목록(qa 항목15)
+            dmRooms.forEach(r => {
+              const id = r.dm ? `dm-u-${r.targetUserId}` : `room-${r.roomIdx}`;
+              const isOpen = openChatIds.includes(id);
+              rows.push({ roomIdx: r.roomIdx, memberCount: r.memberCount, node: (
+                <div key={`dm-${r.roomIdx}`} className={styles.channelRow}>
+                  <button
+                    className={[styles.channelItem, isOpen ? styles.channelItemOpen : ''].join(' ')}
+                    onClick={() => handleChatOpen(
+                      r.dm && r.targetUserId
+                        ? { id, name: r.name, type: 'dm', targetUserId: r.targetUserId }
+                        : { id, name: r.name, type: 'channel' }
+                    )}
+                  >
+                    {r.dm
+                      ? <Avatar url={r.avatarUrl} name={r.name} className={styles.friendAvatar} />
+                      : <span className={styles.channelHash}>#</span>}
+                    <span>{r.name}</span>
+                    {unread[r.roomIdx] > 0 && <UnreadBadge n={unread[r.roomIdx]} />}
+                  </button>
+                  {/* 일반 채팅방 점세개 메뉴(버그 항목18) */}
+                  <button
+                    className={styles.dotBtn}
+                    onClick={e => openChannelMenu(id, r.name, r.roomIdx, false, r.owner, true, e)}
+                    title="채팅방 메뉴"
+                  >
+                    <DotsIcon />
+                  </button>
+                </div>
+              ) });
+            });
+
+            const categories: { key: string; label: string }[] = [
+              { key: 'cat-dm',    label: 'DM' },
+              { key: 'cat-group', label: '단톡방' },
+              { key: 'cat-idle',  label: '휴면' },
+            ];
+
+            return (
+              <div className={styles.itemList}>
+                {categories.map(cat => {
+                  const catRows = rows.filter(r => `cat-${chatCategoryKey(r.memberCount)}` === cat.key);
+                  if (catRows.length === 0) return null; // 빈 카테고리는 숨김
+                  const collapsed = collapsedSections.has(cat.key);
+                  return (
+                    <div key={cat.key}>
+                      <button className={styles.subSectionHeader} onClick={() => toggleSection(cat.key)}>
+                        <svg className={`${styles.subSectionChevron} ${collapsed ? '' : styles.subSectionChevronOpen}`}
+                          width="9" height="9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <span className={styles.subSectionLabel}>{cat.label}</span>
+                        <span className={styles.subSectionCount}>{catRows.length}</span>
+                      </button>
+                      {!collapsed && catRows.map(r => r.node)}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           <div className={styles.sectionDivider} />
         </div>
 
@@ -1064,6 +1151,23 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
         <div className={styles.contextMenu} style={{ top: menuChannel.y, left: menuChannel.x }}>
           <div className={styles.menuTitle}># {menuChannel.ch}</div>
           <div className={styles.menuDivider} />
+          {/* 채팅방 이름변경 — 방 OWNER만(I-13) */}
+          {menuChannel.canRename && (
+            <button
+              className={styles.menuItem}
+              onClick={() => {
+                const rm = { roomIdx: menuChannel.roomIdx, current: menuChannel.ch };
+                closeAllMenus();
+                setRenameModal(rm);
+              }}
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              채팅방 이름변경
+            </button>
+          )}
           {/* 참여 중일 때만 나가기 노출(미참여 방엔 나갈 게 없음) */}
           {menuChannel.joined && (
             <button
@@ -1139,6 +1243,17 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
       <ChannelModal
         onConfirm={submitCreateChannel}
         onClose={() => setChannelModalTeam(null)}
+      />
+    )}
+
+    {/* 채팅방 이름변경 모달(I-13) */}
+    {renameModal && (
+      <ChannelModal
+        title="채팅방 이름변경"
+        initialValue={renameModal.current}
+        submitLabel="변경"
+        onConfirm={async (name) => { await handleRenameRoom(renameModal.roomIdx, name); }}
+        onClose={() => setRenameModal(null)}
       />
     )}
     </>

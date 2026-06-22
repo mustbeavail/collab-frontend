@@ -112,7 +112,7 @@ export default function SearchModal({ onClose }: Props) {
                   <div className={styles.avatar}>
                     {f.avatarUrl
                       ? <img src={`${API_BASE}${f.avatarUrl}`} alt="" className={styles.avatarImg} />
-                      : f.nickname[0]}
+                      : f.nickname?.[0] ?? '?'}
                   </div>
                   <div className={styles.itemInfo}>
                     <span className={styles.itemName}>{f.nickname}</span>

@@ -5,6 +5,15 @@ import styles from './MessageList.module.css';
 import type { ChatMessage, FileMessageContent } from '@/types/chat';
 import { fileService } from '@/services/file';
 import { translateService } from '@/services/translate';
+import UserProfileModal from '@/components/user/UserProfileModal';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+function resolveAvatar(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  return `${API_BASE}${url}`;
+}
 
 interface Props {
   messages: ChatMessage[];
@@ -76,6 +85,12 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
   const [translations, setTranslations] = useState<Record<number, string>>({});
   const [translating, setTranslating] = useState<Record<number, boolean>>({});
 
+  // F(23): 맨밑으로 버튼
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  // F(10): 닉네임 클릭 → 회원정보 팝업
+  const [profileTarget, setProfileTarget] = useState<{ userId: string; nickname: string; email: string } | null>(null);
+
   const handleTranslate = useCallback(async (msgIdx: number, text: string) => {
     if (translations[msgIdx] !== undefined) {
       setTranslations(prev => { const next = { ...prev }; delete next[msgIdx]; return next; });
@@ -127,12 +142,18 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
     }
   });
 
-  // 스크롤 상단 감지 → 과거 메시지 로드
+  // 스크롤 상단 감지 → 과거 메시지 로드 + F(23) 맨밑으로 버튼 표시
   const handleScroll = useCallback(() => {
     const el = listRef.current;
-    if (!el || !onLoadMore || !hasMore || loadingMore) return;
-    if (el.scrollTop < 80) onLoadMore();
+    if (!el) return;
+    if (onLoadMore && hasMore && !loadingMore && el.scrollTop < 80) onLoadMore();
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    setShowScrollBtn(!nearBottom);
   }, [onLoadMore, hasMore, loadingMore]);
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   if (loading) {
     return <div className={styles.list}><p className={styles.empty}>메시지 로딩 중...</p></div>;
@@ -143,56 +164,96 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
   }
 
   return (
-    <div className={styles.list} ref={listRef} onScroll={handleScroll}>
-      {loadingMore && <p className={styles.loadingMore}>이전 메시지 로딩 중...</p>}
-      {hasMore && !loadingMore && <p className={styles.scrollHint}>위로 스크롤하면 이전 메시지를 불러옵니다</p>}
+    <div className={styles.listWrap}>
+      <div className={styles.list} ref={listRef} onScroll={handleScroll}>
+        {loadingMore && <p className={styles.loadingMore}>이전 메시지 로딩 중...</p>}
+        {hasMore && !loadingMore && <p className={styles.scrollHint}>위로 스크롤하면 이전 메시지를 불러옵니다</p>}
 
-      {messages.map((msg) => (
-        <div
-          key={msg.msgIdx}
-          className={`${styles.message} ${msg.userId === currentUserId ? styles.mine : ''}`}
-        >
-          {msg.userId !== currentUserId && (
-            msg.avatarUrl
-              ? <img src={msg.avatarUrl} alt={msg.nickname} className={styles.avatarImg} />
-              : <div className={styles.avatar}>{avatarText(msg.nickname)}</div>
-          )}
-          <div className={styles.body}>
-            {msg.userId !== currentUserId && (
-              <div className={styles.meta}>
-                <span className={styles.sender}>{msg.nickname}</span>
-                <span className={styles.time}>{formatTime(msg.sentAt)}</span>
+        {messages.map((msg) => {
+          // G(11): SYSTEM 메시지 별도 표시
+          if (msg.msgType === 'SYSTEM') {
+            return (
+              <div key={msg.msgIdx} className={styles.systemMessage}>
+                {msg.content}
               </div>
-            )}
-            {msg.msgType === 'FILE' ? (
-              <FileMessageBubble content={msg.content} />
-            ) : (
-              <div className={styles.bubbleWrap}>
-                <p className={styles.content}>{msg.content}</p>
-                <button
-                  className={`${styles.translateBtn} ${translations[msg.msgIdx] !== undefined ? styles.translateBtnActive : ''}`}
-                  onClick={() => handleTranslate(msg.msgIdx, msg.content)}
-                  title={translations[msg.msgIdx] !== undefined ? '번역 숨기기' : '한국어로 번역'}
-                  disabled={translating[msg.msgIdx]}
-                >
-                  {translating[msg.msgIdx] ? (
-                    <span className={styles.translateSpinner} />
-                  ) : (
-                    <TranslateIcon />
-                  )}
-                </button>
-                {translations[msg.msgIdx] !== undefined && (
-                  <p className={styles.translatedText}>{translations[msg.msgIdx]}</p>
+            );
+          }
+
+          return (
+            <div
+              key={msg.msgIdx}
+              className={`${styles.message} ${msg.userId === currentUserId ? styles.mine : ''}`}
+            >
+              {msg.userId !== currentUserId && (
+                (() => {
+                  const avatarSrc = resolveAvatar(msg.avatarUrl);
+                  const openProfile = () => setProfileTarget({ userId: msg.userId, nickname: msg.nickname, email: msg.userId });
+                  return avatarSrc
+                    ? <img src={avatarSrc} alt={msg.nickname} className={`${styles.avatarImg} ${styles.avatarClickable}`} onClick={openProfile} title="프로필 보기" />
+                    : <div className={`${styles.avatar} ${styles.avatarClickable}`} onClick={openProfile} title="프로필 보기">{avatarText(msg.nickname)}</div>;
+                })()
+              )}
+              <div className={styles.body}>
+                {msg.userId !== currentUserId && (
+                  <div className={styles.meta}>
+                    <span
+                      className={`${styles.sender} ${styles.senderClickable}`}
+                      onClick={() => setProfileTarget({ userId: msg.userId, nickname: msg.nickname, email: msg.userId })}
+                      title="프로필 보기"
+                    >
+                      {msg.nickname}
+                    </span>
+                    <span className={styles.time}>{formatTime(msg.sentAt)}</span>
+                  </div>
+                )}
+                {msg.msgType === 'FILE' ? (
+                  <FileMessageBubble content={msg.content} />
+                ) : (
+                  <div className={styles.bubbleWrap}>
+                    <p className={styles.content}>{msg.content}</p>
+                    <button
+                      className={`${styles.translateBtn} ${translations[msg.msgIdx] !== undefined ? styles.translateBtnActive : ''}`}
+                      onClick={() => handleTranslate(msg.msgIdx, msg.content)}
+                      title={translations[msg.msgIdx] !== undefined ? '번역 숨기기' : '한국어로 번역'}
+                      disabled={translating[msg.msgIdx]}
+                    >
+                      {translating[msg.msgIdx] ? (
+                        <span className={styles.translateSpinner} />
+                      ) : (
+                        <TranslateIcon />
+                      )}
+                    </button>
+                    {translations[msg.msgIdx] !== undefined && (
+                      <p className={styles.translatedText}>{translations[msg.msgIdx]}</p>
+                    )}
+                  </div>
+                )}
+                {msg.userId === currentUserId && (
+                  <span className={`${styles.time} ${styles.mineTime}`}>{formatTime(msg.sentAt)}</span>
                 )}
               </div>
-            )}
-            {msg.userId === currentUserId && (
-              <span className={`${styles.time} ${styles.mineTime}`}>{formatTime(msg.sentAt)}</span>
-            )}
-          </div>
-        </div>
-      ))}
-      <div ref={bottomRef} />
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* F(23): 맨밑으로 버튼 */}
+      {showScrollBtn && (
+        <button className={styles.scrollToBottomBtn} onClick={scrollToBottom} title="맨 아래로">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      )}
+
+      {/* F(10): 회원정보 팝업 */}
+      {profileTarget && (
+        <UserProfileModal
+          user={profileTarget}
+          onClose={() => setProfileTarget(null)}
+        />
+      )}
     </div>
   );
 }

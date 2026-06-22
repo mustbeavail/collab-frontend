@@ -1,3 +1,12 @@
+/* F(23): listWrap은 상대 위치를 제공해 맨밑으로 버튼의 absolute 기준이 됨 */
+.listWrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .list {
   flex: 1;
   overflow-y: auto;
@@ -176,4 +185,60 @@
   line-height: 1.5;
   max-width: 100%;
   word-break: break-word;
+}
+
+/* G(11): 시스템 메시지 (입장/퇴장/탈퇴 안내) */
+.systemMessage {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  padding: 2px 12px;
+  background: var(--bg-secondary, #f1f5f9);
+  border-radius: 12px;
+  margin: 0 auto;
+  max-width: 80%;
+}
+
+/* F(10): 닉네임 클릭 가능 스타일 */
+.senderClickable {
+  cursor: pointer;
+}
+.senderClickable:hover {
+  text-decoration: underline;
+  color: var(--accent, #6366f1);
+}
+
+/* 메시지 아바타(프로필 사진) 클릭 → 유저 정보 */
+.avatarClickable {
+  cursor: pointer;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+.avatarClickable:hover {
+  opacity: 0.85;
+  box-shadow: 0 0 0 2px var(--accent, #6366f1);
+}
+
+/* F(23): 맨밑으로 버튼 */
+.scrollToBottomBtn {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--bg-base, #fff);
+  color: var(--text-muted, #94a3b8);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  z-index: 10;
+}
+.scrollToBottomBtn:hover {
+  color: var(--accent, #6366f1);
+  background: var(--accent-dim, #eef2ff);
 }

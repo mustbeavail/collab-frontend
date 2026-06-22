@@ -9,6 +9,7 @@ interface TeamState {
   addTeam: (team: TeamItem) => void;
   updateTeamInStore: (team: TeamItem) => void;
   removeTeam: (teamIdx: number) => void;
+  removeChannelFromTeam: (teamIdx: number, roomIdx: number) => void;
 }
 
 export const useTeamStore = create<TeamState>((set) => ({
@@ -21,4 +22,12 @@ export const useTeamStore = create<TeamState>((set) => ({
     set((s) => ({ teams: s.teams.map((t) => (t.teamIdx === team.teamIdx ? team : t)) })),
   removeTeam: (teamIdx) =>
     set((s) => ({ teams: s.teams.filter((t) => t.teamIdx !== teamIdx) })),
+  removeChannelFromTeam: (teamIdx, roomIdx) =>
+    set((s) => ({
+      teams: s.teams.map((t) =>
+        t.teamIdx === teamIdx
+          ? { ...t, channels: t.channels.filter((ch) => ch.roomIdx !== roomIdx) }
+          : t
+      ),
+    })),
 }));

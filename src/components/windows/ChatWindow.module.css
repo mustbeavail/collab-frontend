@@ -224,6 +224,14 @@
 .memberOnline  { background-color: var(--online); }
 .memberOffline { background-color: var(--text-muted); }
 
+/* 멤버 클릭(회원정보 보기, I-7) */
+.memberPanelClickable {
+  display: flex; align-items: center; gap: 9px;
+  flex: 1; min-width: 0;
+  background: none; border: none; padding: 0; margin: 0;
+  cursor: pointer; text-align: left; color: inherit;
+}
+
 .memberPanelInfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .memberPanelName { font-size: 0.8rem; color: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .memberPanelRole { font-size: 0.68rem; color: var(--accent-light); }
@@ -244,13 +252,23 @@
   border-bottom: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 6px;
 }
+/* 멤버 검색 입력 + 지우기 버튼(I-6) */
+.inviteInputWrap { position: relative; width: 100%; }
 .inviteInput {
-  width: 100%; padding: 6px 10px; font-size: 0.8rem;
+  width: 100%; padding: 6px 28px 6px 10px; font-size: 0.8rem;
   background: var(--bg-hover); border: 1px solid var(--border);
   border-radius: 8px; color: var(--text-base);
   outline: none;
 }
 .inviteInput:focus { border-color: var(--accent-light); }
+.inviteClearBtn {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  background: var(--bg-surface); border: none; border-radius: 50%;
+  color: var(--text-muted); cursor: pointer;
+}
+.inviteClearBtn:hover { color: var(--text-base); background: var(--border); }
 .inviteHint { font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 4px 0; }
 .inviteResult {
   display: flex; align-items: center; gap: 8px;

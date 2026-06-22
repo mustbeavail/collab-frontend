@@ -6,11 +6,14 @@ import styles from './TeamModal.module.css';
 interface Props {
   onConfirm: (roomName: string) => Promise<void>;
   onClose: () => void;
+  title?: string;        // 기본 '채팅방 추가'(I-13 이름변경 시 '채팅방 이름변경')
+  initialValue?: string; // 이름변경 시 현재 이름
+  submitLabel?: string;  // 기본 '만들기'(이름변경 시 '변경')
 }
 
-/** 팀 채팅방(채널) 추가 모달. 기존 prompt() 대체. */
-export default function ChannelModal({ onConfirm, onClose }: Props) {
-  const [roomName, setRoomName] = useState('');
+/** 팀 채팅방(채널) 추가/이름변경 모달. 기존 prompt() 대체. */
+export default function ChannelModal({ onConfirm, onClose, title = '채팅방 추가', initialValue = '', submitLabel = '만들기' }: Props) {
+  const [roomName, setRoomName] = useState(initialValue);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,7 +27,7 @@ export default function ChannelModal({ onConfirm, onClose }: Props) {
       onClose();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? '채팅방 생성 중 오류가 발생했습니다.');
+      setError(msg ?? '처리 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -34,7 +37,7 @@ export default function ChannelModal({ onConfirm, onClose }: Props) {
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>채팅방 추가</h2>
+          <h2 className={styles.title}>{title}</h2>
           <button className={styles.closeBtn} onClick={onClose} disabled={loading}>
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -63,7 +66,7 @@ export default function ChannelModal({ onConfirm, onClose }: Props) {
               취소
             </button>
             <button type="submit" className={styles.submitBtn} disabled={loading || !roomName.trim()}>
-              {loading ? '처리 중...' : '만들기'}
+              {loading ? '처리 중...' : submitLabel}
             </button>
           </div>
         </form>

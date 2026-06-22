@@ -7,6 +7,8 @@ export interface DmRoom {
   dm: boolean;
   targetUserId: string | null;
   avatarUrl: string | null;
+  memberCount: number; // I-14
+  owner: boolean;      // I-13
 }
 
 export const chatService = {

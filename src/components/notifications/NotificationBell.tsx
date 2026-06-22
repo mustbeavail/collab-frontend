@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useFriendStore } from '@/store/friendStore';
 import { useTeamStore } from '@/store/teamStore';
+import { useChatNotifStore } from '@/store/chatNotifStore';
 import { friendService } from '@/services/friend';
 import { teamService } from '@/services/team';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
@@ -13,7 +14,7 @@ import styles from './NotificationBell.module.css';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
-type TabType = 'all' | 'friend' | 'team';
+type TabType = 'all' | 'friend' | 'team' | 'message';
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -27,9 +28,24 @@ export default function NotificationBell() {
     useNotificationStore();
   const addFriend = useFriendStore((s) => s.addFriend);
   const addTeam = useTeamStore((s) => s.addTeam);
+  // 새 메시지 알림(I-3/11/12) — 메시지별 항목, 읽어도 남김
+  const messageList = useChatNotifStore((s) => s.messageNotifs); // 이미 최신순
+  const markRoomNotifsRead = useChatNotifStore((s) => s.markRoomNotifsRead);
+  const unreadMessages = messageList.filter((m) => !m.read).length;
 
-  const totalCount = pendingRequests.length + teamInvitations.length;
-  const unreadBadge = Math.max(0, totalCount - readCount);
+  // 친구/팀 알림은 벨을 열면 읽음 처리(readCount), 메시지 알림은 실제 채팅방을 읽어야 해제(I-12)
+  const friendTeamCount = pendingRequests.length + teamInvitations.length;
+  const totalCount = friendTeamCount;
+  const unreadBadge = Math.max(0, friendTeamCount - readCount) + unreadMessages;
+
+  // 메시지 알림 클릭 → 해당 채팅방 열기(page가 수신, 중복창 방지) + 읽음표시(삭제X, I-12)
+  const handleOpenChatNotif = (roomIdx: number, roomName: string) => {
+    window.dispatchEvent(new CustomEvent('collab:open-chat', {
+      detail: { id: `room-${roomIdx}`, name: roomName, type: 'channel' },
+    }));
+    markRoomNotifsRead(roomIdx);
+    setOpen(false);
+  };
 
   useEffect(() => {
     friendService.getPendingRequests().then(setPendingRequests).catch(() => {});
@@ -110,9 +126,10 @@ export default function NotificationBell() {
     }
   };
 
-  const visibleFriends = activeTab === 'all' || activeTab === 'friend' ? pendingRequests : [];
-  const visibleTeams   = activeTab === 'all' || activeTab === 'team'   ? teamInvitations : [];
-  const visibleTotal   = visibleFriends.length + visibleTeams.length;
+  const visibleFriends  = activeTab === 'all' || activeTab === 'friend'  ? pendingRequests : [];
+  const visibleTeams    = activeTab === 'all' || activeTab === 'team'    ? teamInvitations : [];
+  const visibleMessages = activeTab === 'all' || activeTab === 'message' ? messageList     : [];
+  const visibleTotal    = visibleFriends.length + visibleTeams.length + visibleMessages.length;
 
   return (
     <>
@@ -154,15 +171,18 @@ export default function NotificationBell() {
 
           {/* 탭 */}
           <div className={styles.tabs}>
-            {(['all', 'friend', 'team'] as TabType[]).map(t => {
-              const count = t === 'all' ? totalCount : t === 'friend' ? pendingRequests.length : teamInvitations.length;
+            {(['all', 'friend', 'team', 'message'] as TabType[]).map(t => {
+              const count = t === 'all' ? friendTeamCount + unreadMessages
+                : t === 'friend' ? pendingRequests.length
+                : t === 'team' ? teamInvitations.length
+                : unreadMessages;
               return (
                 <button
                   key={t}
                   className={`${styles.tab} ${activeTab === t ? styles.tabActive : ''}`}
                   onClick={() => setActiveTab(t)}
                 >
-                  {t === 'all' ? '전체' : t === 'friend' ? '친구' : '팀'}
+                  {t === 'all' ? '전체' : t === 'friend' ? '친구' : t === 'team' ? '팀' : '메시지'}
                   {count > 0 && <span className={styles.tabBadge}>{count}</span>}
                 </button>
               );
@@ -189,7 +209,7 @@ export default function NotificationBell() {
                       className={`${styles.avatar} ${styles.avatarClickable}`}
                       onClick={() => handleViewProfile(req)}
                       title="프로필 보기"
-                    >{req.nickname[0]}</div>
+                    >{req.nickname?.[0] ?? '?'}</div>
                   )}
                   <div className={styles.info}>
                     <span
@@ -228,6 +248,35 @@ export default function NotificationBell() {
                   <div className={styles.actions}>
                     <button className={styles.acceptBtn} onClick={() => handleAcceptTeam(inv.tmIdx)}>수락</button>
                     <button className={styles.rejectBtn} onClick={() => handleRejectTeam(inv.tmIdx)}>거절</button>
+                  </div>
+                </div>
+              ))}
+
+              {visibleMessages.length > 0 && (visibleFriends.length > 0 || visibleTeams.length > 0) && (
+                <div className={styles.divider} />
+              )}
+
+              {/* 새 메시지 알림(I-3/11/12) — 메시지별 항목, 읽으면 흐리게 남김, 클릭 시 채팅방 열기 */}
+              {visibleMessages.map((m) => (
+                <div
+                  key={`msg-${m.id}`}
+                  className={`${styles.item} ${styles.avatarClickable}`}
+                  onClick={() => handleOpenChatNotif(m.roomIdx, m.roomName)}
+                  title="채팅방 열기"
+                  style={{ cursor: 'pointer', opacity: m.read ? 0.5 : 1 }}
+                >
+                  <div className={styles.teamIcon}>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <div className={styles.info}>
+                    <span className={styles.name}>
+                      {m.senderNick}{m.read ? '' : ' ·'}
+                      <span className={styles.desc} style={{ marginLeft: 6, fontWeight: 400 }}>{m.roomName}</span>
+                    </span>
+                    <span className={styles.desc}>{m.preview || '새 메시지'}</span>
                   </div>
                 </div>
               ))}

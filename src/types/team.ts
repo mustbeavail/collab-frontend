@@ -2,6 +2,8 @@ export interface TeamChannel {
   roomIdx: number;
   roomName: string;
   joined: boolean;
+  memberCount: number; // I-14
+  owner: boolean;      // I-13
 }
 
 export interface TeamMemberItem {

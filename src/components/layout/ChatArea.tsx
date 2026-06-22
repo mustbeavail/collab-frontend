@@ -16,6 +16,7 @@ interface Props {
   onToggleMinimize: (windowId: string) => void;
   onUpdate: (windowId: string, updates: Partial<ChatWindowState>) => void;
   onBringToFront: (windowId: string) => void;
+  onResolveRoomIdx: (windowId: string, roomIdx: number) => void;
 }
 
 function Clock() {
@@ -114,7 +115,7 @@ function TestBotButton() {
   );
 }
 
-export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimize, onUpdate, onBringToFront }: Props) {
+export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimize, onUpdate, onBringToFront, onResolveRoomIdx }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -126,6 +127,14 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
   }, []);
 
   const minimized = windows.filter(w => w.minimized);
+
+  // 활성(포커스된) 채팅창 = 최소화 안 된 창 중 zIndex 최상위(I-4).
+  // 이 창만 읽음 처리한다 — 여러 창을 띄워도 보고 있지 않은 창은 미읽음 유지.
+  let activeWindowId: string | null = null;
+  let topZ = -1;
+  windows.forEach(w => {
+    if (!w.minimized && w.zIndex > topZ) { topZ = w.zIndex; activeWindowId = w.windowId; }
+  });
 
   return (
     <div className={styles.workspace}>
@@ -211,6 +220,8 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
             onUpdate={updates => onUpdate(win.windowId, updates)}
             onBringToFront={() => onBringToFront(win.windowId)}
             onUnreadChange={count => handleUnreadChange(win.windowId, count)}
+            isActive={win.windowId === activeWindowId}
+            onResolveRoomIdx={roomIdx => onResolveRoomIdx(win.windowId, roomIdx)}
           />
         ))}
 

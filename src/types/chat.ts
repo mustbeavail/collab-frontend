@@ -39,4 +39,6 @@ export interface ChatRoomDetail {
   createdAt: string;
   isDm: boolean;
   teamIdx: number | null;
+  memberCount: number;
+  myRole: string | null;
 }
