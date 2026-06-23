@@ -19,15 +19,22 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
   const [value, setValue] = useState('');
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const textareaRef   = useRef<HTMLTextAreaElement>(null);
+  const attachWrapRef = useRef<HTMLDivElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
+
+  // 여러 줄로 늘어난 입력란을 기본 높이(36px)로 복원(*추가1)
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) textareaRef.current.style.height = '36px';
+  };
 
   const handleSend = () => {
     const trimmed = value.trim();
     if (!trimmed) return;
     onSend?.(trimmed);
     setValue('');
+    resetTextareaHeight(); // 전송 후 입력란 높이 원복
   };
-  const attachWrapRef = useRef<HTMLDivElement>(null);
-  const fileInputRef  = useRef<HTMLInputElement>(null);
 
   // 외부 클릭 시 팝업 닫기
   useEffect(() => {
@@ -105,6 +112,7 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
         </div>
 
         <textarea
+          ref={textareaRef}
           className={styles.textarea}
           value={value}
           onChange={e => setValue(e.target.value)}
@@ -119,6 +127,11 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               handleSend();
+            } else if (e.key === 'Escape' && value) {
+              // 입력 취소: 내용 비우고 높이 원복(*추가1)
+              e.preventDefault();
+              setValue('');
+              resetTextareaHeight();
             }
           }}
         />

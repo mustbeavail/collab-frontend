@@ -247,11 +247,24 @@ export function useWebRTC({
     const run = async () => {
       try {
         setError(null);
-        const constraints = sessionType === 'VIDEO'
-          ? { audio: true, video: { width: 640, height: 480, facingMode: 'user' } }
-          : { audio: true };
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // 화상은 오디오+비디오 요청. 단, 카메라가 없거나 사용 불가하면 getUserMedia가 통째로 거부되어
+        // 오디오까지 못 얻는다(→ 녹음 '오디오 스트림 없음' 버그). 이 경우 오디오 전용으로 폴백해
+        // 카메라 없이도 음성 참여 + 녹음이 되게 한다.
+        let stream: MediaStream;
+        if (sessionType === 'VIDEO') {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: true, video: { width: 640, height: 480, facingMode: 'user' },
+            });
+          } catch {
+            // 카메라 실패 → 오디오만으로 재시도(영상 없이 참여)
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (!cleanedUp) setError('카메라를 사용할 수 없어 음성으로만 참여합니다.');
+          }
+        } else {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
         if (cleanedUp) { stream.getTracks().forEach(t => t.stop()); return; }
 
         localStreamRef.current = stream;
@@ -371,7 +384,11 @@ export function useWebRTC({
 
   // ── 녹음/녹화 (세그먼트 자동 분할: 음성 10분 / 화상 3분) ──────────────────
   const startRecording = useCallback(() => {
-    if (isRecording || !localStreamRef.current) return;
+    if (isRecording) return;
+    if (!localStreamRef.current) {
+      setError('녹음할 오디오 스트림이 없습니다. 마이크 권한을 확인해주세요.');
+      return;
+    }
     try {
       const ctx = audioCtxRef.current ?? new AudioContext();
       const dest = ctx.createMediaStreamDestination();
@@ -425,7 +442,12 @@ export function useWebRTC({
         if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
       }, maxSegmentMs);
       setIsRecording(true);
-    } catch { /* MediaRecorder 미지원 또는 권한 오류 */ }
+    } catch (e) {
+      // 기존엔 조용히 삼켜서 '버튼 눌러도 무반응'이었음 → 원인을 화면에 노출
+      console.error('[녹음 시작 실패]', e);
+      const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      setError('녹음을 시작할 수 없습니다 — ' + msg);
+    }
   }, [isRecording, sessionType]);
 
   const stopRecording = useCallback(() => {
