@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import styles from './MessageInput.module.css';
-import { fileService } from '@/services/file';
+import { fileService, FileTooLargeError } from '@/services/file';
 
 interface Props {
   channelName: string;
@@ -95,8 +95,8 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
               try {
                 const uploaded = await fileService.upload(roomIdx, file);
                 onFileUpload(uploaded.fileIdx, uploaded.oriFilename, uploaded.fileSize, uploaded.fileExtension);
-              } catch {
-                alert('파일 업로드에 실패했습니다.');
+              } catch (err) {
+                alert(err instanceof FileTooLargeError ? err.message : '파일 업로드에 실패했습니다.');
               } finally {
                 setUploading(false);
               }
@@ -142,11 +142,7 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
               )}
             </button>
           )}
-          <button className={styles.iconBtn}>
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
+          {/* 항목19(일정이후): 미구현 이모티콘 아이콘 삭제 */}
           <button
             className={`${styles.sendBtn} ${value.trim() ? styles.sendBtnActive : styles.sendBtnInactive}`}
             onClick={handleSend}

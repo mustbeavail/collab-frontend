@@ -19,17 +19,18 @@ interface Props {
   onResolveRoomIdx: (windowId: string, roomIdx: number) => void;
 }
 
+// 연월일 + 요일 + 시각 표시(G-17). 예: '2026. 6. 23. (화) 14:30'
+function formatNow(now: Date) {
+  const date = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' });
+  const time = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${date} ${time}`;
+}
+
 function Clock() {
-  const [time, setTime] = useState(() => {
-    const now = new Date();
-    return now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  });
+  const [time, setTime] = useState(() => formatNow(new Date()));
 
   useEffect(() => {
-    const id = setInterval(() => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
-    }, 1000);
+    const id = setInterval(() => setTime(formatNow(new Date())), 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -148,12 +149,12 @@ export default function ChatArea({ windows, onClose, onCloseAll, onToggleMinimiz
           {windows.length > 0 && (
             <span className={styles.windowCount}>{windows.length}</span>
           )}
+
+          {/* 기능 테스트(테스트봇) 버튼 — 헤더 왼쪽으로 이동 */}
+          <TestBotButton />
         </div>
         <div className={styles.headerActions}>
           <Clock />
-
-          {/* 기능 테스트(테스트봇) 버튼 */}
-          <TestBotButton />
 
           {/* 글로벌 검색 버튼 */}
           <button

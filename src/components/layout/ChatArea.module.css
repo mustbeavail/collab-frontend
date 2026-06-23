@@ -55,6 +55,8 @@
   letter-spacing: 0.03em;
   padding: 0 6px;
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 캘린더 버튼 컨테이너 (팝업 앵커) */
@@ -219,7 +221,8 @@
 .canvas {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  /* 항목7(일정이후): 채팅창이 펼쳐져(패널 오픈/이동) 캔버스 밖으로 나가도 잘리지 않고 스크롤로 접근 */
+  overflow: auto;
 }
 
 /* 빈 상태 */

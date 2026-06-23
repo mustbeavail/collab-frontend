@@ -1,12 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { minutesService, MeetingNote } from '@/services/minutes';
 
+const pad = (n: number) => String(n).padStart(2, '0');
+// Date → "yyyy-MM-ddTHH:mm" (백엔드 LocalDateTime 호환, 로컬 기준)
 function toLocalDatetimeValue(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+// "yyyy-MM-ddTHH:mm" → Date
+const parseDt = (s?: string | null): Date | null => (s ? new Date(s) : null);
 import styles from './MinutesPanel.module.css';
 
 type View = 'list' | 'detail' | 'create' | 'edit' | 'ai-form' | 'voice-ai-form';
@@ -26,12 +31,14 @@ export default function MinutesPanel({
   onClose,
   roomIdx,
   currentUserId,
+  canManageDelete,
   lastRecordingSegments,
   lastRecordingMimeType,
 }: {
   onClose: () => void;
   roomIdx?: number | null;
   currentUserId?: string;
+  canManageDelete?: boolean; // 항목6: 방장/팀 리더·매니저 — 작성자 아닌 회의록도 삭제 가능
   lastRecordingSegments?: Blob[];
   lastRecordingMimeType?: string;
 }) {
@@ -42,13 +49,16 @@ export default function MinutesPanel({
   const [saving, setSaving]       = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
-  const [aiStartTime, setAiStartTime]   = useState('');
-  const [aiEndTime, setAiEndTime]       = useState('');
+  const [aiStartTime, setAiStartTime]   = useState<Date | null>(null);
+  const [aiEndTime, setAiEndTime]       = useState<Date | null>(null);
   const [generating, setGenerating]     = useState(false);
   const [voiceBlobs, setVoiceBlobs]     = useState<Blob[] | null>(null);
+  const [voiceFileNames, setVoiceFileNames] = useState<string[]>([]); // 항목22: 선택한 파일명 표시
   const [voiceMime, setVoiceMime]       = useState<string>('audio/webm');
   const [voiceGenerating, setVoiceGenerating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const startDpRef = useRef<DatePicker>(null);
+  const endDpRef   = useRef<DatePicker>(null);
 
   const loadNotes = useCallback(async () => {
     if (!roomIdx) return;
@@ -63,20 +73,29 @@ export default function MinutesPanel({
   useEffect(() => { loadNotes(); }, [loadNotes]);
 
   const openAiForm = () => {
+    // 디폴트: 방의 가장 오래된~최신 메시지 시각(항목2). 조회 전/실패 시 최근 1시간으로 폴백.
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    setAiStartTime(toLocalDatetimeValue(oneHourAgo));
-    setAiEndTime(toLocalDatetimeValue(now));
+    setAiStartTime(new Date(now.getTime() - 60 * 60 * 1000));
+    setAiEndTime(now);
     setView('ai-form');
+    if (!roomIdx) return;
+    minutesService.getTimeRange(roomIdx)
+      .then(range => {
+        if (range.start) setAiStartTime(parseDt(range.start));
+        if (range.end)   setAiEndTime(parseDt(range.end));
+      })
+      .catch(() => { /* 폴백 유지 */ });
   };
 
   const openVoiceAiForm = () => {
     if (lastRecordingSegments?.length) {
       setVoiceBlobs(lastRecordingSegments);
       setVoiceMime(lastRecordingMimeType ?? 'audio/webm');
+      setVoiceFileNames([`방금 녹음된 파일 (${lastRecordingSegments.length}개 세그먼트)`]);
     } else {
       setVoiceBlobs(null);
       setVoiceMime('audio/webm');
+      setVoiceFileNames([]);
     }
     setView('voice-ai-form');
   };
@@ -85,6 +104,7 @@ export default function MinutesPanel({
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setVoiceBlobs(files);
+    setVoiceFileNames(files.map(f => f.name)); // 항목22: 선택한 파일명 표시
     setVoiceMime(files[0].type || 'audio/webm');
   };
 
@@ -106,11 +126,12 @@ export default function MinutesPanel({
 
   const handleAiGenerate = async () => {
     if (!roomIdx || !aiStartTime || !aiEndTime) return;
+    if (aiEndTime.getTime() < aiStartTime.getTime()) { alert('종료 시간은 시작 시간보다 빠를 수 없습니다.'); return; }
     setGenerating(true);
     try {
       const created = await minutesService.generateAiMinutes(roomIdx, {
-        startTime: aiStartTime,
-        endTime: aiEndTime,
+        startTime: toLocalDatetimeValue(aiStartTime),
+        endTime: toLocalDatetimeValue(aiEndTime),
       });
       setNotes(prev => [created, ...prev]);
       setSelected(created);
@@ -166,6 +187,25 @@ export default function MinutesPanel({
       setSaving(false);
     }
   };
+
+  // 항목10: 회의록 내보내기(Markdown .md 다운로드)
+  const handleExport = (note: MeetingNote) => {
+    const md = `# ${note.title}\n\n_${note.createdAt} · ${note.authorNick}_\n\n${note.content ?? '(내용 없음)'}\n`;
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeTitle = note.title.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 80);
+    a.download = `${safeTitle || '회의록'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // 항목6: 해당 회의록을 삭제할 수 있는가 — 작성자 본인 OR 방장/팀 리더·매니저
+  const canDeleteNote = (note: MeetingNote) =>
+    note.authorId === currentUserId || !!canManageDelete;
 
   const handleDelete = async (note: MeetingNote) => {
     if (!confirm(`"${note.title}" 회의록을 삭제하시겠습니까?`)) return;
@@ -249,10 +289,13 @@ export default function MinutesPanel({
               </svg>
               파일 선택
             </button>
-            {voiceBlobs && !usingLastRecording && (
-              <span className={styles.fileSelectedInfo}>
-                {voiceBlobs.length}개 파일 · {formatBytes(totalSize)}
-              </span>
+            {voiceBlobs && !usingLastRecording && voiceFileNames.length > 0 && (
+              <div className={styles.fileSelectedInfo}>
+                {voiceFileNames.map((name, i) => (
+                  <span key={i} className={styles.fileSelectedName} title={name}>📄 {name}</span>
+                ))}
+                <span className={styles.fileSelectedMeta}>{voiceBlobs.length}개 파일 · {formatBytes(totalSize)}</span>
+              </div>
             )}
           </div>
 
@@ -313,21 +356,45 @@ export default function MinutesPanel({
           </div>
           <div className={styles.formRow}>
             <label className={styles.formLabel}>시작 시간</label>
-            <input
-              type="datetime-local"
+            <DatePicker
+              ref={startDpRef}
+              selected={aiStartTime}
+              onChange={(d: Date | null) => setAiStartTime(d)}
+              showTimeSelect
+              timeFormat="HH:mm"
+              timeIntervals={30}
+              timeCaption="시간"
+              dateFormat="yyyy-MM-dd HH:mm"
+              maxDate={aiEndTime ?? undefined}
+              shouldCloseOnSelect={false}
+              placeholderText="시작 날짜와 시간 선택"
               className={styles.formInput}
-              value={aiStartTime}
-              onChange={e => setAiStartTime(e.target.value)}
-            />
+            >
+              <div className={styles.dpDone}>
+                <button type="button" className={styles.dpDoneBtn} onClick={() => startDpRef.current?.setOpen(false)}>완료</button>
+              </div>
+            </DatePicker>
           </div>
           <div className={styles.formRow}>
             <label className={styles.formLabel}>종료 시간</label>
-            <input
-              type="datetime-local"
+            <DatePicker
+              ref={endDpRef}
+              selected={aiEndTime}
+              onChange={(d: Date | null) => setAiEndTime(d)}
+              showTimeSelect
+              timeFormat="HH:mm"
+              timeIntervals={30}
+              timeCaption="시간"
+              dateFormat="yyyy-MM-dd HH:mm"
+              minDate={aiStartTime ?? undefined}
+              shouldCloseOnSelect={false}
+              placeholderText="종료 날짜와 시간 선택"
               className={styles.formInput}
-              value={aiEndTime}
-              onChange={e => setAiEndTime(e.target.value)}
-            />
+            >
+              <div className={styles.dpDone}>
+                <button type="button" className={styles.dpDoneBtn} onClick={() => endDpRef.current?.setOpen(false)}>완료</button>
+              </div>
+            </DatePicker>
           </div>
           <button
             className={styles.aiSubmitBtn}
@@ -419,6 +486,11 @@ export default function MinutesPanel({
             목록
           </button>
           <div className={styles.headerActions}>
+            <button className={styles.editBtn} onClick={() => handleExport(selected)} title="내보내기 (Markdown)">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
             {isAuthor && (
               <button className={styles.editBtn} onClick={() => openEdit(selected)} title="수정">
                 <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -472,7 +544,7 @@ export default function MinutesPanel({
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
           </svg>
-          채팅 AI
+          채팅 AI 회의록
         </button>
         <button
           className={`${styles.voiceBtn} ${lastRecordingSegments?.length ? styles.voiceBtnHasRecording : ''}`}
@@ -483,7 +555,7 @@ export default function MinutesPanel({
           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 016 0v6a3 3 0 01-3 3z" />
           </svg>
-          음성 AI
+          음성 AI 회의록
         </button>
       </div>
 
@@ -503,15 +575,17 @@ export default function MinutesPanel({
                 <span className={styles.itemTitle}>{n.title}</span>
                 <span className={styles.itemMeta}>{n.createdAt} · {n.authorNick}</span>
               </div>
-              <button
-                className={styles.deleteBtn}
-                onClick={e => { e.stopPropagation(); handleDelete(n); }}
-                title="삭제"
-              >
-                <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              {canDeleteNote(n) && (
+                <button
+                  className={styles.deleteBtn}
+                  onClick={e => { e.stopPropagation(); handleDelete(n); }}
+                  title="삭제"
+                >
+                  <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           ))
         )}

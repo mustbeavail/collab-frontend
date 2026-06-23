@@ -160,6 +160,20 @@
   display: flex;
 }
 
+/* 항목11(일정이후): 버블과 아이콘 사이 빈 공간을 투명 영역으로 메워 hover 유지(아이콘이 바로 사라지지 않게) */
+.translateBtn::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -16px;   /* 버블 쪽으로 연장해 간격을 메움 */
+  right: -8px;
+}
+.mine .translateBtn::before {
+  left: -8px;
+  right: -16px;  /* 내 메시지는 아이콘이 왼쪽이므로 오른쪽(버블 방향)으로 연장 */
+}
+
 .translateSpinner {
   display: inline-block;
   width: 10px;
@@ -185,6 +199,23 @@
   line-height: 1.5;
   max-width: 100%;
   word-break: break-word;
+}
+
+/* 항목1(일정이후): 날짜 변경 구분선 */
+.dateDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 14px 0 6px;
+}
+.dateDivider span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  background: var(--bg-secondary, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
+  padding: 3px 14px;
+  border-radius: 12px;
 }
 
 /* G(11): 시스템 메시지 (입장/퇴장/탈퇴 안내) */

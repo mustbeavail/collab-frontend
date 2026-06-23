@@ -24,6 +24,12 @@ export interface AiGeneratePayload {
   endTime: string;
 }
 
+// 항목2(일정이후): AI 회의록 시간범위 디폴트(방의 가장 오래된~최신 메시지 시각)
+export interface MinutesTimeRange {
+  start: string | null; // "yyyy-MM-ddTHH:mm"
+  end: string | null;
+}
+
 export const minutesService = {
   getNotes: async (roomIdx: number): Promise<MeetingNote[]> => {
     const res = await api.get(`/api/minutes/rooms/${roomIdx}`);
@@ -42,6 +48,11 @@ export const minutesService = {
 
   deleteNote: async (noteIdx: number): Promise<void> => {
     await api.delete(`/api/minutes/${noteIdx}`);
+  },
+
+  getTimeRange: async (roomIdx: number): Promise<MinutesTimeRange> => {
+    const res = await api.get(`/api/minutes/rooms/${roomIdx}/time-range`);
+    return res.data.data;
   },
 
   generateAiMinutes: async (roomIdx: number, payload: AiGeneratePayload): Promise<MeetingNote> => {

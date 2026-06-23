@@ -2,7 +2,8 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  z-index: 1000;
+  /* 검색모달(20000) 위로 올라오게(G-16). 멤버 프로필(20200)은 이 위에 표시 */
+  z-index: 20100;
   display: flex;
   align-items: center;
   justify-content: center;

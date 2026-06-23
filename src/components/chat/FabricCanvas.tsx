@@ -5,6 +5,7 @@ import { Stage, Layer, Line, Rect, Ellipse } from 'react-konva';
 import styles from './FabricCanvas.module.css';
 import { useStompClient } from '@/providers/StompProvider';
 import { useAuthStore } from '@/store/authStore';
+import { drawService } from '@/services/draw';
 
 type Tool = 'pencil' | 'eraser' | 'line' | 'rect' | 'ellipse';
 
@@ -25,8 +26,10 @@ type DrawEventPayload = {
 const PALETTE = ['#000000', '#1d4ed8', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#7c3aed', '#db2777', '#64748b'];
 const THROTTLE_MS = 30;
 
-let _id = 0;
-const uid = () => String(++_id);
+// 항목8(일정이후): 요소 id는 전역 유일해야 함(스냅샷 로드·여러 클라이언트 간 undo/dedup 충돌 방지).
+// 기존 클라이언트별 카운터는 사용자마다 1,2,3...로 겹쳐 충돌 → uuid로 변경.
+const uid = () =>
+  (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 function renderEl(el: DrawEl) {
   switch (el.type) {
@@ -110,6 +113,16 @@ export default function FabricCanvas({ roomIdx }: Props) {
     return () => ro.disconnect();
   }, []);
 
+  /* ── 항목8: 패널 열 때(마운트) 서버 캔버스 스냅샷 로드 — 펼치기 전에 그려진 내용 표시 ── */
+  useEffect(() => {
+    if (!roomIdx) return;
+    let cancelled = false;
+    drawService.getState(roomIdx)
+      .then(snapshot => { if (!cancelled) setElements(snapshot as DrawEl[]); })
+      .catch(() => { /* 스냅샷 실패 시 빈 캔버스로 시작 */ });
+    return () => { cancelled = true; };
+  }, [roomIdx]);
+
   /* ── WebSocket 구독 ── */
   useEffect(() => {
     if (!stompClient || !roomIdx) return;
@@ -127,7 +140,8 @@ export default function FabricCanvas({ roomIdx }: Props) {
           next.delete(payload.userId);
           return next;
         });
-        setElements(prev => [...prev, payload.element!]);
+        // 항목8: 스냅샷에 이미 포함된 요소(동일 id)면 중복 추가 방지
+        setElements(prev => prev.some(e => e.id === payload.element!.id) ? prev : [...prev, payload.element!]);
       } else if (payload.eventType === 'DRAW_CLEAR') {
         setElements([]);
         setRemoteInProgress(new Map());
@@ -273,7 +287,7 @@ export default function FabricCanvas({ roomIdx }: Props) {
     { id: 'pencil', label: '펜',
       icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg> },
     { id: 'eraser', label: '지우개',
-      icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L17.5 6.5a2.121 2.121 0 013 3L9 21H6v-3z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18"/></svg> },
+      icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m7 21-4.3-4.3a1.7 1.7 0 0 1 0-2.4l9.6-9.6a1.7 1.7 0 0 1 2.4 0l5.6 5.6a1.7 1.7 0 0 1 0 2.4L13 21z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 21H7M5 11l9 9"/></svg> },
     { id: 'line', label: '선',
       icon: <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4" strokeWidth={2} strokeLinecap="round"/></svg> },
     { id: 'rect', label: '사각형',

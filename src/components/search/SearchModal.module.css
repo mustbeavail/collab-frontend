@@ -137,6 +137,13 @@
   border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.15s;
+  /* button 기본 흰 배경/테두리 제거(G-13: 친구가 하얀색으로 보이던 버그) */
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
 }
 
 .item:hover {

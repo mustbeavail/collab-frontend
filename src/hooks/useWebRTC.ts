@@ -30,6 +30,8 @@ export interface UseWebRTCOptions {
   currentNickname: string;
   sessionType: 'VOICE' | 'VIDEO';
   active: boolean;
+  // [I] 녹음 중지 시 호출(서버 보관용). 미지정이면 아무것도 안 함(자동 다운로드 폐기).
+  onRecordingComplete?: (segments: Blob[], mimeType: string) => void;
 }
 
 export interface UseWebRTCResult {
@@ -56,8 +58,13 @@ export function useWebRTC({
   currentNickname,
   sessionType,
   active,
+  onRecordingComplete,
 }: UseWebRTCOptions): UseWebRTCResult {
   const client = useStompClient();
+
+  // 녹음 완료 콜백 stale closure 방지용 ref
+  const onRecordingCompleteRef = useRef(onRecordingComplete);
+  useEffect(() => { onRecordingCompleteRef.current = onRecordingComplete; }, [onRecordingComplete]);
 
   // 콜백 내에서 stale closure 없이 최신값 접근하기 위한 refs
   const localStreamRef  = useRef<MediaStream | null>(null);
@@ -373,21 +380,14 @@ export function useWebRTC({
         try { ctx.createMediaStreamSource(rs).connect(dest); } catch { /* ignore */ }
       });
 
-      let recordStream: MediaStream;
-      if (sessionType === 'VIDEO') {
-        const vt = localStreamRef.current.getVideoTracks()[0];
-        recordStream = vt
-          ? new MediaStream([vt, ...dest.stream.getTracks()])
-          : dest.stream;
-      } else {
-        recordStream = dest.stream;
-      }
+      // [I] 항목21: 화상 채팅도 '녹화(비디오)' 대신 '녹음(오디오)'으로 통일 → 항상 오디오만 녹음
+      const recordStream: MediaStream = dest.stream;
 
-      const mimeType = sessionType === 'VIDEO'
-        ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm')
-        : (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')     ? 'audio/webm;codecs=opus'     : 'audio/webm');
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
 
-      const maxSegmentMs = sessionType === 'VIDEO' ? 3 * 60 * 1000 : 10 * 60 * 1000;
+      const maxSegmentMs = 10 * 60 * 1000; // 10분 단위 분할(오디오)
 
       recordStreamRef.current = recordStream;
       segmentsRef.current = [];
@@ -405,19 +405,10 @@ export function useWebRTC({
 
           if (isFinalStopRef.current || !recordStreamRef.current) {
             const segs = [...segmentsRef.current];
-            setLastRecordingSegments(segs);
+            setLastRecordingSegments(segs); // AI 회의록 입력용으로 메모리 보관
             setLastRecordingMimeType(mimeType);
-            // 세그먼트별 파일 다운로드
-            segs.forEach((seg, i) => {
-              const url = URL.createObjectURL(seg);
-              const a   = document.createElement('a');
-              a.href     = url;
-              a.download = segs.length > 1
-                ? `recording-${Date.now()}-part${i + 1}.webm`
-                : `recording-${Date.now()}.webm`;
-              a.click();
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
-            });
+            // [I] 항목20: 자동 다운로드 폐기 → 서버 보관 콜백 호출(ChatWindow가 업로드)
+            onRecordingCompleteRef.current?.(segs, mimeType);
             setIsRecording(false);
             if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
           } else {

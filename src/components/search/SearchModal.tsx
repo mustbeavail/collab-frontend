@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { searchService, type GlobalSearchResult } from '@/services/search';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
+import TeamInfoModal from '@/components/team/TeamInfoModal';
+import { useTeamStore } from '@/store/teamStore';
+import { teamService } from '@/services/team';
+import type { TeamItem } from '@/types/team';
 import styles from './SearchModal.module.css';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -21,8 +25,31 @@ export default function SearchModal({ onClose }: Props) {
   const [result, setResult] = useState<GlobalSearchResult>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [profileTarget, setProfileTarget] = useState<ProfileTarget | null>(null);
+  const [teamTarget, setTeamTarget] = useState<TeamItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storeTeams = useTeamStore(s => s.teams);
+
+  // 채팅방 검색결과 클릭 → 검색모달 닫고 해당 채팅방 열기(G-15).
+  // page.tsx의 'collab:open-chat' 리스너가 수신(중복창 방지). NotificationBell과 동일 경로.
+  const handleOpenRoom = (roomIdx: number, roomName: string) => {
+    window.dispatchEvent(new CustomEvent('collab:open-chat', {
+      detail: { id: `room-${roomIdx}`, name: roomName, type: 'channel' },
+    }));
+    onClose();
+  };
+
+  // 팀 검색결과 클릭 → 팀 정보 모달(G-16). 글로벌 검색은 내가 속한 팀만 반환하므로
+  // teamStore에 있다. 혹시 없으면(스토어 미적재) 서버에서 조회 폴백.
+  const handleOpenTeam = async (teamIdx: number) => {
+    const inStore = storeTeams.find(t => t.teamIdx === teamIdx);
+    if (inStore) { setTeamTarget(inStore); return; }
+    try {
+      const teams = await teamService.getMyTeams();
+      const found = teams.find(t => t.teamIdx === teamIdx);
+      if (found) setTeamTarget(found);
+    } catch { /* 무시 */ }
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -52,6 +79,9 @@ export default function SearchModal({ onClose }: Props) {
     <>
     {profileTarget && (
       <UserProfileModal user={profileTarget} onClose={() => setProfileTarget(null)} />
+    )}
+    {teamTarget && (
+      <TeamInfoModal team={teamTarget} onClose={() => setTeamTarget(null)} />
     )}
     <div className={styles.overlay} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={styles.modal}>
@@ -127,12 +157,17 @@ export default function SearchModal({ onClose }: Props) {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>팀</div>
               {teams.map(t => (
-                <div key={t.teamIdx} className={styles.item}>
+                <button
+                  key={t.teamIdx}
+                  className={styles.item}
+                  onClick={() => handleOpenTeam(t.teamIdx)}
+                  title="팀 정보 보기"
+                >
                   <div className={`${styles.avatar} ${styles.teamAvatar}`}>{t.teamName[0]}</div>
                   <div className={styles.itemInfo}>
                     <span className={styles.itemName}>{t.teamName}</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -141,7 +176,12 @@ export default function SearchModal({ onClose }: Props) {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>채팅방</div>
               {rooms.map(r => (
-                <div key={r.roomIdx} className={styles.item}>
+                <button
+                  key={r.roomIdx}
+                  className={styles.item}
+                  onClick={() => handleOpenRoom(r.roomIdx, r.roomName)}
+                  title="채팅방 열기"
+                >
                   <div className={`${styles.avatar} ${styles.roomAvatar}`}>
                     {r.isDm ? '@' : '#'}
                   </div>
@@ -149,7 +189,7 @@ export default function SearchModal({ onClose }: Props) {
                     <span className={styles.itemName}>{r.roomName}</span>
                     <span className={styles.itemSub}>채팅방</span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

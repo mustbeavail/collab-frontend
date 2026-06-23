@@ -14,7 +14,7 @@ import { useChatRoom } from '@/hooks/useChatRoom';
 import { useChatNotifStore } from '@/store/chatNotifStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
-import { fileService } from '@/services/file';
+import { fileService, FileTooLargeError } from '@/services/file';
 import { useAuthStore } from '@/store/authStore';
 import { useTeamStore } from '@/store/teamStore';
 import { userService } from '@/services/user';
@@ -147,6 +147,31 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchQuery, roomIdx]);
 
+  // [I] 녹음 중지 시 서버 업로드(자동 다운로드 폐기). 세그먼트별로 '녹음 YYYY-MM-DD HH-mm (n).webm' 이름으로 보관.
+  const handleRecordingComplete = useCallback(async (segments: Blob[], mimeType: string) => {
+    if (!roomIdx || segments.length === 0) return;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    const ext = mimeType.includes('webm') ? 'webm' : 'webm';
+    let uploaded = 0;
+    for (let i = 0; i < segments.length; i++) {
+      const name = segments.length > 1 ? `녹음 ${stamp} (${i + 1}).${ext}` : `녹음 ${stamp}.${ext}`;
+      const fileObj = new File([segments[i]], name, { type: mimeType });
+      try {
+        await fileService.uploadRecording(roomIdx, fileObj);
+        uploaded++;
+      } catch { /* 개별 세그먼트 실패는 건너뜀 */ }
+    }
+    if (uploaded > 0) {
+      // 파일 패널(녹음 섹션) 실시간 갱신 + 사용자 안내
+      window.dispatchEvent(new CustomEvent('collab:recording-uploaded', { detail: { roomIdx } }));
+      alert(`녹음이 저장되었습니다. 파일 패널의 '녹음'에서 다운로드할 수 있어요. (30일간 보관)`);
+    } else {
+      alert('녹음 저장에 실패했습니다.');
+    }
+  }, [roomIdx]);
+
   const webrtcActive = voiceChatActive || videoChatActive;
   const webrtc = useWebRTC({
     roomIdx,
@@ -154,6 +179,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     currentNickname,
     sessionType: videoChatActive ? 'VIDEO' : 'VOICE',
     active: webrtcActive,
+    onRecordingComplete: handleRecordingComplete,
   });
 
   useEffect(() => {
@@ -188,7 +214,9 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
       try {
         const uploaded = await fileService.upload(roomIdx, file);
         sendFileMessage(uploaded.fileIdx, uploaded.oriFilename, uploaded.fileSize, uploaded.fileExtension);
-      } catch { alert(`${file.name} 업로드에 실패했습니다.`); }
+      } catch (e) {
+        alert(e instanceof FileTooLargeError ? e.message : `${file.name} 업로드에 실패했습니다.`);
+      }
     }
   }, [roomIdx, sendFileMessage]);
 
@@ -231,6 +259,10 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   // 권한 검증은 백엔드가 수행(팀채팅방 초대는 권한자만, 대상은 팀멤버 등).
   const canManageMembers = true;
   const isOwner = roomInfo?.myRole === 'OWNER';
+  // 항목6(일정이후): 회의록 삭제 권한 — 비팀방=방장(OWNER), 팀채팅방=팀 리더·매니저. (작성자 본인은 MinutesPanel에서 별도 허용)
+  const canManageMinutesDelete = roomInfo?.teamIdx != null
+    ? ['LEADER', 'MANAGER'].includes(teams.find(t => t.teamIdx === roomInfo.teamIdx)?.myRole ?? '')
+    : roomInfo?.myRole === 'OWNER';
 
   // roomIdx 설정 시 초기 멤버 로드 (isOwner 계산 및 편집 버튼 표시에 필요)
   useEffect(() => {
@@ -818,9 +850,9 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
                   <button
                     className={`${styles.recordBtn} ${webrtc.isRecording ? styles.recordBtnActive : ''}`}
                     onClick={webrtc.isRecording ? webrtc.stopRecording : webrtc.startRecording}
-                    title={webrtc.isRecording ? '녹화 중지' : '녹화 시작'}
+                    title={webrtc.isRecording ? '녹음 중지' : '녹음 시작'}
                   >
-                    {webrtc.isRecording ? '■ 중지' : '● 녹화'}
+                    {webrtc.isRecording ? '■ 중지' : '● 녹음'}
                   </button>
                   <button className={styles.endCallBtn} onClick={() => setVideoChatActive(false)}>
                     종료
@@ -1043,7 +1075,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
         }`}>
           {activePanel === 'schedule' && <SchedulePanel onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
           {activePanel === 'file'     && <FilePanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
-          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} lastRecordingSegments={webrtc.lastRecordingSegments} lastRecordingMimeType={webrtc.lastRecordingMimeType} />}
+          {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} canManageDelete={canManageMinutesDelete} lastRecordingSegments={webrtc.lastRecordingSegments} lastRecordingMimeType={webrtc.lastRecordingMimeType} />}
           {activePanel === 'draw'     && <DrawPanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
           {activePanel === 'chart'    && <ChartPanel    onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
         </div>

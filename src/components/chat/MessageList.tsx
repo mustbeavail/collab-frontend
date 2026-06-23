@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './MessageList.module.css';
 import type { ChatMessage, FileMessageContent } from '@/types/chat';
 import { fileService } from '@/services/file';
@@ -35,6 +35,17 @@ function formatTime(isoStr: string): string {
 
 function avatarText(nickname: string): string {
   return nickname?.charAt(0) ?? '?';
+}
+
+// 항목1(일정이후): 메시지 사이 날짜 변경 시 연월일 구분선
+function dateKey(isoStr: string): string {
+  const d = new Date(isoStr);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+function formatDateDivider(isoStr: string): string {
+  const d = new Date(isoStr);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAYS[d.getDay()]})`;
 }
 
 function formatFileSize(bytes: number): string {
@@ -208,19 +219,27 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
         {loadingMore && <p className={styles.loadingMore}>이전 메시지 로딩 중...</p>}
         {hasMore && !loadingMore && <p className={styles.scrollHint}>위로 스크롤하면 이전 메시지를 불러옵니다</p>}
 
-        {messages.map((msg) => {
+        {messages.map((msg, i) => {
+          // 항목1(일정이후): 직전 메시지와 날짜가 다르면(또는 첫 메시지) 연월일 구분선 삽입
+          const prev = messages[i - 1];
+          const dateDivider = (!prev || dateKey(prev.sentAt) !== dateKey(msg.sentAt)) ? (
+            <div className={styles.dateDivider}><span>{formatDateDivider(msg.sentAt)}</span></div>
+          ) : null;
+
           // G(11): SYSTEM 메시지 별도 표시
           if (msg.msgType === 'SYSTEM') {
             return (
-              <div key={msg.msgIdx} className={styles.systemMessage}>
-                {msg.content}
-              </div>
+              <Fragment key={msg.msgIdx}>
+                {dateDivider}
+                <div className={styles.systemMessage}>{msg.content}</div>
+              </Fragment>
             );
           }
 
           return (
+            <Fragment key={msg.msgIdx}>
+            {dateDivider}
             <div
-              key={msg.msgIdx}
               className={`${styles.message} ${msg.userId === currentUserId ? styles.mine : ''}`}
             >
               {msg.userId !== currentUserId && (
@@ -276,6 +295,7 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                 )}
               </div>
             </div>
+            </Fragment>
           );
         })}
         <div ref={bottomRef} />
