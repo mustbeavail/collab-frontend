@@ -81,6 +81,10 @@ export function useWebRTC({
   const recordStreamRef   = useRef<MediaStream | null>(null);
   const segmentTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFinalStopRef    = useRef(false);
+  // [I] 녹음 중 합류자 오디오도 믹스에 추가하기 위한 ref:
+  // recordDestRef = 녹음용 믹싱 대상(있으면 '녹음 중'), recordConnectedStreamsRef = 이미 연결된 스트림(중복 연결 방지)
+  const recordDestRef     = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const recordConnectedStreamsRef = useRef<Set<MediaStream>>(new Set());
   const localVideoRef     = useRef<HTMLVideoElement>(null);
 
   // toggleMic 에서 최신값 참조용
@@ -89,6 +93,19 @@ export function useWebRTC({
   const localMicOnRef = useRef(true);
   useEffect(() => { clientRef.current = client; },  [client]);
   useEffect(() => { roomIdxRef.current = roomIdx; }, [roomIdx]);
+
+  // [I] 주어진 스트림을 녹음 믹스(recordDest)에 1회만 연결. 녹음 중이 아니면(dest 없음) 무시.
+  // 녹음 시작 시점의 참가자뿐 아니라, 녹음 도중 합류한 참가자의 오디오도 같은 경로로 추가하기 위함.
+  const connectToRecording = useCallback((stream: MediaStream | null) => {
+    const ctx  = audioCtxRef.current;
+    const dest = recordDestRef.current;
+    if (!ctx || !dest || !stream) return;
+    if (recordConnectedStreamsRef.current.has(stream)) return; // 중복 연결 시 오디오 이중 믹싱 방지
+    try {
+      ctx.createMediaStreamSource(stream).connect(dest);
+      recordConnectedStreamsRef.current.add(stream);
+    } catch { /* ignore */ }
+  }, []);
 
   // 렌더링용 상태
   const [localStream,   setLocalStream]   = useState<MediaStream | null>(null);
@@ -150,6 +167,8 @@ export function useWebRTC({
         remoteStreamsRef.current.set(peerId, stream);
         setRemoteStreams(new Map(remoteStreamsRef.current));
         addRemoteAnalyser(peerId, stream);
+        // [I] 녹음 중이면 녹음 시작 후 합류한 참가자의 오디오도 믹스에 추가
+        connectToRecording(stream);
       };
 
       return pc;
@@ -356,6 +375,8 @@ export function useWebRTC({
       isFinalStopRef.current = true;
       if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
       recordStreamRef.current = null;
+      recordDestRef.current = null;
+      recordConnectedStreamsRef.current.clear();
       recorderRef.current?.stop();
       recorderRef.current = null;
     };
@@ -391,11 +412,13 @@ export function useWebRTC({
     }
     try {
       const ctx = audioCtxRef.current ?? new AudioContext();
+      audioCtxRef.current = ctx; // ontrack의 connectToRecording이 동일 ctx를 쓰도록 보장
       const dest = ctx.createMediaStreamDestination();
-      ctx.createMediaStreamSource(localStreamRef.current).connect(dest);
-      remoteStreamsRef.current.forEach(rs => {
-        try { ctx.createMediaStreamSource(rs).connect(dest); } catch { /* ignore */ }
-      });
+      recordDestRef.current = dest;                 // 이후 ontrack에서 합류자 연결의 기준
+      recordConnectedStreamsRef.current = new Set(); // 새 녹음 세션의 연결 추적 초기화
+      // 녹음 시작 시점의 본인 + 현재 참가자 전원 연결. 이후 합류자는 ontrack에서 connectToRecording으로 추가됨.
+      connectToRecording(localStreamRef.current);
+      remoteStreamsRef.current.forEach(rs => connectToRecording(rs));
 
       // [I] 항목21: 화상 채팅도 '녹화(비디오)' 대신 '녹음(오디오)'으로 통일 → 항상 오디오만 녹음
       const recordStream: MediaStream = dest.stream;
@@ -427,6 +450,9 @@ export function useWebRTC({
             // [I] 항목20: 자동 다운로드 폐기 → 서버 보관 콜백 호출(ChatWindow가 업로드)
             onRecordingCompleteRef.current?.(segs, mimeType);
             setIsRecording(false);
+            // [I] 녹음 종료 → 합류자 연결 기준 해제
+            recordDestRef.current = null;
+            recordConnectedStreamsRef.current.clear();
             if (segmentTimerRef.current) { clearInterval(segmentTimerRef.current); segmentTimerRef.current = null; }
           } else {
             // 자동 분할: 다음 세그먼트 시작
@@ -448,7 +474,7 @@ export function useWebRTC({
       const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
       setError('녹음을 시작할 수 없습니다 — ' + msg);
     }
-  }, [isRecording, sessionType]);
+  }, [isRecording, sessionType, connectToRecording]);
 
   const stopRecording = useCallback(() => {
     isFinalStopRef.current = true;

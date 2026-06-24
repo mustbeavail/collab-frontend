@@ -388,7 +388,14 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   };
 
   const [activePanel, setActivePanel] = useState<'schedule' | 'file' | 'minutes' | 'draw' | 'chart' | null>(null);
+  // 항목4(일정이후): 'AI 데이터 분석' 첨부로 선택한 파일을 차트 패널로 전달
+  const [chartInitialFile, setChartInitialFile] = useState<File | null>(null);
   const minSizeRef = useRef({ w: MIN_WIDTH, h: MIN_HEIGHT });
+
+  const handleAnalyzeFile = (file: File) => {
+    setChartInitialFile(file);
+    setActivePanel('chart'); // 토글이 아니라 항상 열기
+  };
 
   const expandToHalf = () => {
     const container = containerRef.current;
@@ -894,6 +901,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
             onMicToggle={webrtc.toggleMic}
             onSend={sendMessage}
             onFileUpload={sendFileMessage}
+            onAnalyzeFile={handleAnalyzeFile}
             roomIdx={roomIdx}
           />
         </div>
@@ -1077,7 +1085,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
           {activePanel === 'file'     && <FilePanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
           {activePanel === 'minutes'  && <MinutesPanel  onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} canManageDelete={canManageMinutesDelete} lastRecordingSegments={webrtc.lastRecordingSegments} lastRecordingMimeType={webrtc.lastRecordingMimeType} />}
           {activePanel === 'draw'     && <DrawPanel     onClose={() => setActivePanel(null)} roomIdx={roomIdx} />}
-          {activePanel === 'chart'    && <ChartPanel    onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} />}
+          {activePanel === 'chart'    && <ChartPanel    onClose={() => setActivePanel(null)} roomIdx={roomIdx} currentUserId={currentUserId} initialFile={chartInitialFile} onFileConsumed={() => setChartInitialFile(null)} />}
         </div>
       </div>
 

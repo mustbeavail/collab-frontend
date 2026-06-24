@@ -42,40 +42,21 @@
   gap: 12px;
 }
 
-/* 공유 배너 */
-.sharedBanner {
+/* 항목4: 공유 차트 작성자 라벨 */
+.authorLabel {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
+  padding: 7px 12px;
+  font-size: 12px;
   color: #1e40af;
   flex-shrink: 0;
 }
-.sharedNick { font-weight: 600; }
-.sharedViewBtn {
-  margin-left: auto;
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  font-weight: 500;
-}
-.sharedViewBtn:hover { background: #2563eb; }
-.sharedDismissBtn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #60a5fa;
-  font-size: 14px;
-  padding: 0 2px;
-}
+.authorLabel::before { content: '📊'; }
+.authorNick { font-weight: 600; }
 
 /* 업로드 뷰 */
 .uploadView {
