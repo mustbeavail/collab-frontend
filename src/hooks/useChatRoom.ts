@@ -13,9 +13,17 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   const [hasMore, setHasMore] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [deletedFileIdx, setDeletedFileIdx] = useState<Set<number>>(new Set());
+  // 테스트봇 '답변 생성 중' 인디케이터(BOT_TYPING 수신 시 표시, 실제 메시지 도착 시 해제)
+  const [botTyping, setBotTyping] = useState<{ nickname: string; avatarUrl: string | null } | null>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoad = useRef(true);
   const activeRef = useRef(active);
   const seenIds = useRef<Set<number>>(new Set());
+
+  const clearBotTyping = useCallback(() => {
+    if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null; }
+    setBotTyping(null);
+  }, []);
 
   useEffect(() => {
     activeRef.current = active;
@@ -37,6 +45,7 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     setMessages([]);
     setHasMore(false);
     setDeletedFileIdx(new Set());
+    clearBotTyping();
     seenIds.current = new Set();
     chatService.getMessages(roomIdx)
       .then(({ messages: msgs, hasMore: more }) => {
@@ -66,9 +75,21 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
           return;
         }
 
+        // 테스트봇 '답변 생성 중' 신호: 실제 메시지가 아니므로 인디케이터만 켠다(30초 안전 타임아웃)
+        if (msg.msgType === 'BOT_TYPING') {
+          setBotTyping({ nickname: msg.nickname, avatarUrl: msg.avatarUrl });
+          if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = setTimeout(() => setBotTyping(null), 30000);
+          return;
+        }
+
         // 중복 메시지 dedup
         if (seenIds.current.has(msg.msgIdx)) return;
         seenIds.current.add(msg.msgIdx);
+
+        // 실제 메시지가 도착하면 '답변 생성 중' 인디케이터를 해제(응답으로 대체)
+        if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null; }
+        setBotTyping(null);
 
         setMessages((prev) => [...prev, msg]);
 
@@ -85,7 +106,10 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
       } catch { /* 파싱 실패 무시 */ }
     });
 
-    return () => sub.unsubscribe();
+    return () => {
+      sub.unsubscribe();
+      if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null; }
+    };
   }, [client, roomIdx]);
 
   // 과거 메시지 추가 로드
@@ -122,5 +146,5 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     });
   }, [client, roomIdx]);
 
-  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, initialLoad, unreadCount };
+  return { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, botTyping, initialLoad, unreadCount };
 }

@@ -202,7 +202,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
     if (roomIdx != null) onResolveRoomIdxRef.current(roomIdx);
   }, [roomIdx]);
 
-  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, initialLoad, unreadCount } =
+  const { messages, loading, loadingMore, hasMore, loadMore, sendMessage, sendFileMessage, deletedFileIdx, botTyping, initialLoad, unreadCount } =
     useChatRoom(roomIdx, !win.minimized && isActive);
 
   // 항목9: 채팅 영역 드래그앤드롭 업로드 (항목2: 카운터로 오버레이 잔존 방지)
@@ -790,6 +790,7 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
             currentUserId={currentUserId}
             initialLoad={initialLoad}
             deletedFileIdx={deletedFileIdx}
+            botTyping={botTyping}
           />
 
           {/* 음성 채팅 패널 */}
