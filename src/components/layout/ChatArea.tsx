@@ -94,7 +94,7 @@ function TestBotButton() {
           <circle cx="9" cy="13" r="1" fill="currentColor" stroke="none" />
           <circle cx="15" cy="13" r="1" fill="currentColor" stroke="none" />
         </svg>
-        <span>기능 테스트</span>
+        <span>챗봇 테스트</span>
       </button>
 
       {showTip && !toast && (

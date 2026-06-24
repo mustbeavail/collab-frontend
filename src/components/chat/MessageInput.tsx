@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './MessageInput.module.css';
 import { fileService, FileTooLargeError } from '@/services/file';
+import { useDemoStore } from '@/store/demoStore';
+import { fetchDemoExcelFile } from '@/lib/demoFixtures';
 
 interface Props {
   channelName: string;
@@ -24,6 +26,32 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
   const attachWrapRef  = useRef<HTMLDivElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const analyzeInputRef = useRef<HTMLInputElement>(null);
+
+  // 시연 모드: 파일 선택창 대신 데모 엑셀(public/demo_excel.xlsx) 자동 사용
+  const handleGeneralAttach = async () => {
+    setAttachOpen(false);
+    if (useDemoStore.getState().active) {
+      if (!roomIdx || !onFileUpload) return;
+      setUploading(true);
+      try {
+        const file = await fetchDemoExcelFile();
+        const up = await fileService.upload(roomIdx, file);
+        onFileUpload(up.fileIdx, up.oriFilename, up.fileSize, up.fileExtension);
+      } catch { alert('데모 파일 첨부에 실패했습니다.'); }
+      finally { setUploading(false); }
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+  const handleAnalyzeAttach = async () => {
+    setAttachOpen(false);
+    if (useDemoStore.getState().active) {
+      if (!onAnalyzeFile) return;
+      try { onAnalyzeFile(await fetchDemoExcelFile()); } catch { /* ignore */ }
+      return;
+    }
+    analyzeInputRef.current?.click();
+  };
 
   // 여러 줄로 늘어난 입력란을 기본 높이(36px)로 복원(*추가1)
   const resetTextareaHeight = () => {
@@ -69,7 +97,7 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
               <button
                 className={styles.attachOption}
                 disabled={uploading}
-                onClick={() => { fileInputRef.current?.click(); setAttachOpen(false); }}
+                onClick={handleGeneralAttach}
               >
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -79,7 +107,7 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
               <div className={styles.attachDivider} />
               <button
                 className={styles.attachOption}
-                onClick={() => { analyzeInputRef.current?.click(); setAttachOpen(false); }}
+                onClick={handleAnalyzeAttach}
               >
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />

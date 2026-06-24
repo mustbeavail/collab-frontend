@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import ChatArea from '@/components/layout/ChatArea';
 import AuthGuard from '@/components/auth/AuthGuard';
+import DemoTour from '@/components/demo/DemoTour';
 import { StompProvider } from '@/providers/StompProvider';
 import styles from './page.module.css';
 import { friendService } from '@/services/friend';
@@ -177,6 +178,7 @@ export default function Home() {
     <AuthGuard>
       <StompProvider>
       <WebSocketBridge />
+      <DemoTour />
       <div className={styles.layout}>
         <Sidebar
           openChatIds={windows.map(w => w.chat.id)}

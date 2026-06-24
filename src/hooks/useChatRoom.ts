@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStompClient } from '@/providers/StompProvider';
 import { chatService } from '@/services/chat';
+import { useDemoStore } from '@/store/demoStore';
+import { useAuthStore } from '@/store/authStore';
+import { DEMO_BOT_ID, DEMO_BOT_NICK, demoBotReply } from '@/lib/demoFixtures';
 import type { ChatMessage } from '@/types/chat';
 
 export function useChatRoom(roomIdx: number | null, active: boolean = true) {
@@ -34,6 +37,16 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
+    }
+  }, [roomIdx]);
+
+  // 시연 모드: 시연이 만든 친구관계(friendIdx 추적됨)의 DM방이 열리면 정리 대상으로 등록.
+  // (이미 친구였던 계정의 기존 DM은 friendIdx가 없으므로 등록되지 않아 보존된다.)
+  useEffect(() => {
+    if (!roomIdx) return;
+    const demo = useDemoStore.getState();
+    if (demo.active && demo.artifacts.friendIdx != null && demo.artifacts.dmRoomIdx == null) {
+      demo.setArtifact({ dmRoomIdx: roomIdx });
     }
   }, [roomIdx]);
 
@@ -130,7 +143,28 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   }, [roomIdx, loadingMore, hasMore, messages]);
 
   const sendMessage = useCallback((content: string) => {
-    if (!client || !roomIdx || !content.trim()) return;
+    if (!content.trim()) return;
+
+    // 시연 모드: 실제 WS 발행 없이 로컬로 대화를 연출(실 Gemini 미호출, 고정 봇 응답).
+    if (useDemoStore.getState().active) {
+      const me = useAuthStore.getState().user;
+      const now = () => new Date().toISOString();
+      const baseIdx = -Date.now();
+      setMessages((prev) => [...prev, {
+        msgIdx: baseIdx, userId: me?.userId ?? 'me', nickname: me?.nickname ?? '나',
+        avatarUrl: null, content, msgType: 'TEXT', sentAt: now(),
+      }]);
+      const reply = demoBotReply(content);
+      setTimeout(() => {
+        setMessages((prev) => [...prev, {
+          msgIdx: baseIdx - 1, userId: DEMO_BOT_ID, nickname: DEMO_BOT_NICK,
+          avatarUrl: null, content: reply, msgType: 'TEXT', sentAt: now(),
+        }]);
+      }, 900);
+      return;
+    }
+
+    if (!client || !roomIdx) return;
     client.publish({
       destination: `/app/chat.send/${roomIdx}`,
       body: JSON.stringify({ content, msgType: 'TEXT' }),
@@ -138,8 +172,20 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   }, [client, roomIdx]);
 
   const sendFileMessage = useCallback((fileIdx: number, oriFilename: string, fileSize: number, fileExtension: string) => {
-    if (!client || !roomIdx) return;
     const content = JSON.stringify({ fileIdx, oriFilename, fileSize, fileExtension });
+
+    // 시연 모드: 파일은 실제 업로드되지만(정리 대상으로 추적), 메시지는 로컬로만 표시(WS 미발행 → 봇 응답 안 함).
+    if (useDemoStore.getState().active) {
+      useDemoStore.getState().addFileIdx(fileIdx);
+      const me = useAuthStore.getState().user;
+      setMessages((prev) => [...prev, {
+        msgIdx: -Date.now(), userId: me?.userId ?? 'me', nickname: me?.nickname ?? '나',
+        avatarUrl: null, content, msgType: 'FILE', sentAt: new Date().toISOString(),
+      }]);
+      return;
+    }
+
+    if (!client || !roomIdx) return;
     client.publish({
       destination: `/app/chat.send/${roomIdx}`,
       body: JSON.stringify({ content, msgType: 'FILE' }),

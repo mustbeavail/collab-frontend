@@ -4,16 +4,38 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services/auth';
+import { demoService } from '@/services/demo';
 import { useAuthStore } from '@/store/authStore';
+import { useDemoStore } from '@/store/demoStore';
 import styles from './login.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
   const { accessToken, setAuth } = useAuthStore();
+  const startDemo = useDemoStore((s) => s.start);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const handleDemo = async () => {
+    if (demoLoading) return;
+    setError('');
+    setDemoLoading(true);
+    try {
+      const acc = await demoService.acquireAccount();
+      setAuth(acc.accessToken, { userId: acc.userId, nickname: acc.nickname, email: acc.email });
+      startDemo();
+      router.replace('/');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? '시연을 시작할 수 없습니다. 잠시 후 다시 시도해주세요.';
+      setError(msg);
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (accessToken) router.replace('/');
@@ -88,6 +110,15 @@ export default function LoginPage() {
 
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? '로그인 중...' : '로그인'}
+            </button>
+
+            <button
+              type="button"
+              className={styles.demoBtn}
+              onClick={handleDemo}
+              disabled={demoLoading}
+            >
+              {demoLoading ? '시연 준비 중...' : '🚀 기능 시연'}
             </button>
           </form>
 

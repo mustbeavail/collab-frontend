@@ -19,6 +19,8 @@ import {
 import { Bar, Line, Pie, Doughnut, Radar } from 'react-chartjs-2';
 import { chartService, ChartAnalyzeResponse, ChartSharePayload } from '@/services/chart';
 import { useStompClient } from '@/providers/StompProvider';
+import { useDemoStore } from '@/store/demoStore';
+import { DEMO_IMAGE_PATH } from '@/lib/demoFixtures';
 import styles from './ChartPanel.module.css';
 
 ChartJS.register(
@@ -62,6 +64,7 @@ export default function ChartPanel({
   const [chartConfig, setChartConfig] = useState<ChartAnalyzeResponse | null>(null);
   // 항목4(일정이후): 현재 표시 중인 차트를 누가 만들었는지(다른 사용자가 공유한 경우만 set, 내가 만들면 null)
   const [chartAuthor, setChartAuthor] = useState<string | null>(null);
+  const [demoChart, setDemoChart]   = useState(false); // 시연 모드: 데모 고정 차트 이미지 표시
   const [error, setError]           = useState('');
   const subRef = useRef<{ unsubscribe(): void } | null>(null);
   // 차트 이미지 다운로드용 chart.js 인스턴스 ref
@@ -157,6 +160,13 @@ export default function ChartPanel({
 
   const handleAnalyze = useCallback(async () => {
     if (!roomIdx || tableData.length === 0) return;
+    // 시연 모드: 실 API 대신 데모 고정 차트 이미지 표시
+    if (useDemoStore.getState().active) {
+      setChartAuthor(null);
+      setDemoChart(true);
+      setView('result');
+      return;
+    }
     setView('loading');
     setError('');
     try {
@@ -173,6 +183,14 @@ export default function ChartPanel({
 
   /* ── 항목4: '채팅방에 공유'를 그래프 이미지(PNG) 다운로드로 변경 ── */
   const handleDownloadImage = useCallback(() => {
+    // 시연 모드: 데모 차트 이미지를 그대로 다운로드
+    if (demoChart) {
+      const a = document.createElement('a');
+      a.href = DEMO_IMAGE_PATH;
+      a.download = 'chart.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      return;
+    }
     const chart = chartRef.current;
     if (!chart?.canvas) return;
     const src = chart.canvas as HTMLCanvasElement;
@@ -191,7 +209,7 @@ export default function ChartPanel({
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }, []);
+  }, [demoChart]);
 
   const handleReset = useCallback(() => {
     setView('upload');
@@ -200,6 +218,7 @@ export default function ChartPanel({
     setQuestion('');
     setChartConfig(null);
     setChartAuthor(null);
+    setDemoChart(false);
     setError('');
   }, []);
 
@@ -274,7 +293,7 @@ export default function ChartPanel({
           </div>
         )}
 
-        {view === 'result' && chartConfig && (
+        {view === 'result' && (demoChart || chartConfig) && (
           <div className={styles.resultView}>
             {chartAuthor && (
               <div className={styles.authorLabel}>
@@ -282,7 +301,9 @@ export default function ChartPanel({
               </div>
             )}
             <div className={styles.chartWrap}>
-              {renderChart(chartConfig, chartRef)}
+              {demoChart
+                ? <img src={DEMO_IMAGE_PATH} alt="데모 차트" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                : chartConfig && renderChart(chartConfig, chartRef)}
             </div>
             <div className={styles.resultActions}>
               <button className={styles.shareBtn} onClick={handleDownloadImage}>

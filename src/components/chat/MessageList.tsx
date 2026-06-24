@@ -6,6 +6,8 @@ import type { ChatMessage, FileMessageContent } from '@/types/chat';
 import { fileService } from '@/services/file';
 import { translateService } from '@/services/translate';
 import { filterLanguages, type Lang } from '@/lib/languages';
+import { useDemoStore } from '@/store/demoStore';
+import { DEMO_TRANSLATION } from '@/lib/demoFixtures';
 import UserProfileModal from '@/components/user/UserProfileModal';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -154,6 +156,11 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
     closeLangMenu();
     if (translations[msgIdx]?.lang === lang.code) {
       setTranslations(prev => { const next = { ...prev }; delete next[msgIdx]; return next; });
+      return;
+    }
+    // 시연 모드: 실 번역 API 대신 고정 번역 표시
+    if (useDemoStore.getState().active) {
+      setTranslations(prev => ({ ...prev, [msgIdx]: { lang: lang.code, label: lang.ko, text: DEMO_TRANSLATION } }));
       return;
     }
     setTranslating(prev => ({ ...prev, [msgIdx]: true }));
