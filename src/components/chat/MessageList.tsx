@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './MessageList.module.css';
 import type { ChatMessage, FileMessageContent } from '@/types/chat';
 import { fileService } from '@/services/file';
@@ -9,6 +10,7 @@ import { filterLanguages, type Lang } from '@/lib/languages';
 import { useDemoStore } from '@/store/demoStore';
 import { DEMO_TRANSLATION } from '@/lib/demoFixtures';
 import UserProfileModal from '@/components/user/UserProfileModal';
+import { TranslateIcon } from '@/components/chat/TranslateIcon';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
@@ -121,14 +123,6 @@ function FileMessageBubble({ content, canDelete, deletedFileIdx }: { content: st
   );
 }
 
-function TranslateIcon() {
-  return (
-    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-        d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-    </svg>
-  );
-}
 
 export default function MessageList({ messages, loading, loadingMore, hasMore, onLoadMore, currentUserId, initialLoad, deletedFileIdx, botTyping }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -139,9 +133,10 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
   // msgIdx → 번역 결과(선택 언어 코드/라벨 포함)
   const [translations, setTranslations] = useState<Record<number, { lang: string; label: string; text: string }>>({});
   const [translating, setTranslating] = useState<Record<number, boolean>>({});
-  // 언어 선택 메뉴가 열린 메시지 + 검색어
+  // 언어 선택 메뉴가 열린 메시지 + 검색어 + 앵커(버튼) 위치(포털 fixed 배치용)
   const [langMenuFor, setLangMenuFor] = useState<number | null>(null);
   const [langQuery, setLangQuery] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
 
   // F(23): 맨밑으로 버튼
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -149,7 +144,7 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
   // F(10): 닉네임 클릭 → 회원정보 팝업
   const [profileTarget, setProfileTarget] = useState<{ userId: string; nickname: string; email: string } | null>(null);
 
-  const closeLangMenu = useCallback(() => { setLangMenuFor(null); setLangQuery(''); }, []);
+  const closeLangMenu = useCallback(() => { setLangMenuFor(null); setLangQuery(''); setMenuAnchor(null); }, []);
 
   // 선택한 언어로 번역. 이미 같은 언어로 번역돼 있으면 토글로 숨김.
   const translateTo = useCallback(async (msgIdx: number, text: string, lang: Lang) => {
@@ -183,12 +178,20 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
   useEffect(() => {
     if (langMenuFor === null) return;
     const handler = (e: MouseEvent) => {
+      // 데모 시연 중에는 바깥(스포트라이트 딤 등) 클릭으로 닫지 않음(번역 단계 진행 막힘 방지)
+      if (useDemoStore.getState().active) return;
       const t = e.target as HTMLElement;
       if (!t.closest('[data-translate-menu]') && !t.closest('[data-translate-btn]')) closeLangMenu();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [langMenuFor, closeLangMenu]);
+
+  // 시연이 끝나면 열려있던 번역 언어 메뉴를 닫는다(#3 남은 팝업 정리)
+  const demoActiveForMenu = useDemoStore((s) => s.active);
+  useEffect(() => {
+    if (!demoActiveForMenu) closeLangMenu();
+  }, [demoActiveForMenu, closeLangMenu]);
 
   // 초기 로드 완료 시 맨 아래로 스크롤
   useEffect(() => {
@@ -266,7 +269,9 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
     if (!el) return;
     if (onLoadMore && hasMore && !loadingMore && el.scrollTop < 80) onLoadMore();
     updateScrollBtn();
-  }, [onLoadMore, hasMore, loadingMore, updateScrollBtn]);
+    // 포털 번역메뉴는 fixed라 스크롤 시 버튼과 어긋나므로 닫는다(데모 중에는 유지 — #2).
+    if (langMenuFor !== null && !useDemoStore.getState().active) closeLangMenu();
+  }, [onLoadMore, hasMore, loadingMore, updateScrollBtn, langMenuFor, closeLangMenu]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -343,7 +348,13 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                     <button
                       data-translate-btn
                       className={`${styles.translateBtn} ${translations[msg.msgIdx] ? styles.translateBtnActive : ''} ${langMenuFor === msg.msgIdx ? styles.translateBtnOpen : ''}`}
-                      onClick={() => { setLangQuery(''); setLangMenuFor(langMenuFor === msg.msgIdx ? null : msg.msgIdx); }}
+                      onClick={(e) => {
+                        setLangQuery('');
+                        const isOpen = langMenuFor === msg.msgIdx;
+                        // 잘림 방지(#1): 메뉴는 body 포털에 fixed로 띄우므로 버튼 위치를 기억해둔다.
+                        setMenuAnchor(isOpen ? null : e.currentTarget.getBoundingClientRect());
+                        setLangMenuFor(isOpen ? null : msg.msgIdx);
+                      }}
                       title="번역 언어 선택"
                       disabled={translating[msg.msgIdx]}
                     >
@@ -353,38 +364,6 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
                         <TranslateIcon />
                       )}
                     </button>
-
-                    {langMenuFor === msg.msgIdx && (
-                      <div className={styles.langMenu} data-translate-menu>
-                        <input
-                          className={styles.langSearch}
-                          placeholder="언어 검색 또는 직접 입력…"
-                          value={langQuery}
-                          onChange={e => setLangQuery(e.target.value)}
-                          autoFocus
-                        />
-                        <div className={styles.langList}>
-                          {translations[msg.msgIdx] && (
-                            <button className={styles.langHideItem} onClick={() => hideTranslation(msg.msgIdx)}>
-                              원문 보기
-                            </button>
-                          )}
-                          {filterLanguages(langQuery).map(l => (
-                            <button
-                              key={l.code}
-                              className={`${styles.langItem} ${translations[msg.msgIdx]?.lang === l.code ? styles.langItemActive : ''}`}
-                              onClick={() => translateTo(msg.msgIdx, msg.content, l)}
-                            >
-                              <span className={styles.langKo}>{l.ko}</span>
-                              <span className={styles.langNative}>{l.native}</span>
-                            </button>
-                          ))}
-                          {filterLanguages(langQuery).length === 0 && (
-                            <p className={styles.langEmpty}>일치하는 언어가 없어요</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
                     {translations[msg.msgIdx] && (
                       <p className={styles.translatedText}>
@@ -443,6 +422,53 @@ export default function MessageList({ messages, loading, loadingMore, hasMore, o
           onClose={() => setProfileTarget(null)}
         />
       )}
+
+      {/* 번역 언어 메뉴(#1): 스크롤 컨테이너에 잘리지 않도록 body 포털 + fixed 배치.
+          데모 스포트라이트(z-index 30000) 위에 보이도록 z-index 30050. */}
+      {langMenuFor !== null && menuAnchor && (() => {
+        const activeMsg = messages.find(m => m.msgIdx === langMenuFor);
+        if (!activeMsg) return null;
+        const MENU_W = 210, MENU_MAXH = 320;
+        const placeBelow = menuAnchor.bottom + 6 + MENU_MAXH <= window.innerHeight;
+        const top = placeBelow ? menuAnchor.bottom + 6 : Math.max(8, menuAnchor.top - 6 - MENU_MAXH);
+        const left = Math.min(Math.max(8, menuAnchor.left), window.innerWidth - MENU_W - 8);
+        return createPortal(
+          <div
+            className={styles.langMenu}
+            data-translate-menu
+            style={{ position: 'fixed', top, left, right: 'auto', zIndex: 30050 }}
+          >
+            <input
+              className={styles.langSearch}
+              placeholder="언어 검색 또는 직접 입력…"
+              value={langQuery}
+              onChange={e => setLangQuery(e.target.value)}
+              autoFocus
+            />
+            <div className={styles.langList}>
+              {translations[activeMsg.msgIdx] && (
+                <button className={styles.langHideItem} onClick={() => hideTranslation(activeMsg.msgIdx)}>
+                  원문 보기
+                </button>
+              )}
+              {filterLanguages(langQuery).map(l => (
+                <button
+                  key={l.code}
+                  className={`${styles.langItem} ${translations[activeMsg.msgIdx]?.lang === l.code ? styles.langItemActive : ''}`}
+                  onClick={() => translateTo(activeMsg.msgIdx, activeMsg.content, l)}
+                >
+                  <span className={styles.langKo}>{l.ko}</span>
+                  <span className={styles.langNative}>{l.native}</span>
+                </button>
+              ))}
+              {filterLanguages(langQuery).length === 0 && (
+                <p className={styles.langEmpty}>일치하는 언어가 없어요</p>
+              )}
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 }

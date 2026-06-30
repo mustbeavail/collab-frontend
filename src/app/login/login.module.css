@@ -124,9 +124,32 @@
   font-family: inherit;
   margin-top: 10px;
   transition: background-color 0.15s, border-color 0.15s;
+  /* 항목2: 은은하게 밝아졌다 돌아오는 반복 애니메이션으로 시선 유도 */
+  animation: demoGlow 2.2s ease-in-out infinite;
 }
-.demoBtn:hover:not(:disabled) { background-color: var(--accent-dim); border-color: var(--accent); }
-.demoBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 호버/비활성 중에는 펄스를 멈추고 명시적 상태를 보여줌 */
+.demoBtn:hover:not(:disabled) { background-color: var(--accent-dim); border-color: var(--accent); animation: none; }
+.demoBtn:disabled { opacity: 0.5; cursor: not-allowed; animation: none; }
+
+@keyframes demoGlow {
+  0%, 100% {
+    border-color: var(--border);
+    background-color: transparent;
+    color: var(--accent-light);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+  50% {
+    border-color: var(--accent);
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    box-shadow: 0 0 16px 2px var(--accent-dim);
+  }
+}
+
+/* 접근성: 모션 최소화 선호 시 펄스 비활성 */
+@media (prefers-reduced-motion: reduce) {
+  .demoBtn { animation: none; }
+}
 
 .footer {
   text-align: center;

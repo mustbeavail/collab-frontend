@@ -7,8 +7,9 @@ export const DEMO_BOT_NICK = '테스트봇';
 export const DEMO_EXCEL_PATH = '/demo_excel.xlsx';
 export const DEMO_EXCEL_NAME = 'demo_excel.xlsx';
 export const DEMO_IMAGE_PATH = '/demo_image.png';
+export const DEMO_IMAGE_NAME = 'demo_image.png';
 
-/** public/demo_excel.xlsx 를 File 객체로 가져와 첨부/분석에 사용 */
+/** public/demo_excel.xlsx 를 File 객체로 가져와 분석(시각화)에 사용 */
 export async function fetchDemoExcelFile(): Promise<File> {
   const res = await fetch(DEMO_EXCEL_PATH);
   const blob = await res.blob();
@@ -16,6 +17,37 @@ export async function fetchDemoExcelFile(): Promise<File> {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 }
+
+// 시연 시 '분석 질문'에 미리 채워둘 프롬프트(수정 불가)
+export const DEMO_CHART_PROMPT = '막대그래프로 표현해줘';
+
+/** public/demo_image.png 를 File 객체로 가져와 '일반 파일 첨부'(이미지) 시연에 사용 */
+export async function fetchDemoImageFile(): Promise<File> {
+  const res = await fetch(DEMO_IMAGE_PATH);
+  const blob = await res.blob();
+  return new File([blob], DEMO_IMAGE_NAME, { type: 'image/png' });
+}
+
+// 시연용 고정 AI 회의록(채팅 AI 회의록 결과). 시연 채팅은 로컬 연출이라 실제 분석 대신 고정 결과를 보여준다.
+export const DEMO_MINUTES_TITLE = 'Collab 기능 소개 회의록 (AI 자동 작성)';
+export const DEMO_MINUTES_CONTENT =
+  '## 참석자\n' +
+  '- 테스트봇, 시연 참여자\n' +
+  '\n' +
+  '## 안건\n' +
+  '- Collab 협업 메신저의 주요 기능 소개\n' +
+  '\n' +
+  '## 논의 내용\n' +
+  '- 실시간 채팅(DM·단톡방·팀 채널)과 메시지 번역 기능을 살펴봄\n' +
+  '- 파일 첨부 및 엑셀 데이터 AI 시각화(차트 생성) 시연\n' +
+  '- 그림판(실시간 공동 드로잉), 음성·화상 채팅(녹음 30일 보관) 소개\n' +
+  '- AI 회의록: 채팅/음성 내용을 Gemini AI가 분석해 자동 작성\n' +
+  '\n' +
+  '## 결정 사항\n' +
+  '- 팀·친구·일정·캘린더로 협업 일정을 함께 관리하기로 함\n' +
+  '\n' +
+  '## 다음 할 일\n' +
+  '- 실제 데이터로 각 기능을 직접 사용해 보기';
 
 // 시연 중 입력란에 자동으로 채워 넣을 프롬프트(정확히 일치해야 고정 응답 매칭)
 export const DEMO_PROMPT_FEATURES_KO = 'Collab 의 구현 기능 목록에 대해 말해봐';

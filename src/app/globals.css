@@ -23,13 +23,13 @@
 
 html, body {
   height: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
   background-color: var(--bg-base);
   color: var(--text-base);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+/* 창이 앱 최소 크기보다 작아지면 페이지(body)가 스크롤되어 전체 UI에 접근 가능하게 한다. */
+body { overflow: auto; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

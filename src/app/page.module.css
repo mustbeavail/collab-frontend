@@ -2,5 +2,9 @@
   display: flex;
   height: 100vh;
   background-color: var(--bg-base);
-  overflow: hidden;
+  /* 창이 작아지면 채팅방(캔버스)이 자체 스크롤되지 않도록, 사이드바+채팅창이 들어갈 최소 크기를 보장하고
+     그보다 작아지면 레이아웃 전체가 스크롤되게 한다(사이드바 288 + 채팅창 min 760 + 여백). */
+  min-width: 1088px;
+  min-height: 560px;
+  overflow: hidden; /* 내부(캔버스 등)는 그대로, 최소크기 초과분은 body가 스크롤 */
 }

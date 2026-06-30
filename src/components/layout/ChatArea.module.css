@@ -23,12 +23,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;        /* 좁아지면 줄어들 수 있게(텍스트 말줄임/숨김 동작 위해) */
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .headerTitle {
   color: var(--text-sub);
   font-size: 0.875rem;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .windowCount {
@@ -45,6 +51,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;   /* 액션 버튼들은 줄어들지 않게(아이콘 유지) */
 }
 
 /* 시계 */
@@ -215,6 +222,21 @@
 .closeAllBtnDisabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ── 반응형: 창이 좁아지면 텍스트 라벨을 단계적으로 숨겨 레이아웃 유지(아이콘은 유지) ── */
+/* 1단계: 시계·'채팅방 모두 닫기'·'챗봇 테스트' 텍스트 숨김 → 아이콘 버튼만 */
+@media (max-width: 1080px) {
+  .header { padding: 0 14px; }
+  .clock { display: none; }
+  .closeAllBtn span { display: none; }
+  .testbotBtn span { display: none; }
+}
+/* 2단계: '워크스페이스' 타이틀까지 숨김 */
+@media (max-width: 760px) {
+  .header { padding: 0 10px; }
+  .headerTitle { display: none; }
+  .headerActions { gap: 4px; }
 }
 
 /* 윈도우 캔버스 */

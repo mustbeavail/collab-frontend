@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './MessageInput.module.css';
 import { fileService, FileTooLargeError } from '@/services/file';
 import { useDemoStore } from '@/store/demoStore';
-import { fetchDemoExcelFile } from '@/lib/demoFixtures';
+import { fetchDemoExcelFile, fetchDemoImageFile } from '@/lib/demoFixtures';
 
 interface Props {
   channelName: string;
@@ -27,14 +27,14 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const analyzeInputRef = useRef<HTMLInputElement>(null);
 
-  // 시연 모드: 파일 선택창 대신 데모 엑셀(public/demo_excel.xlsx) 자동 사용
+  // 시연 모드: 파일 선택창 대신 데모 이미지(public/demo_image.png) 자동 첨부(실제 업로드)
   const handleGeneralAttach = async () => {
     setAttachOpen(false);
     if (useDemoStore.getState().active) {
       if (!roomIdx || !onFileUpload) return;
       setUploading(true);
       try {
-        const file = await fetchDemoExcelFile();
+        const file = await fetchDemoImageFile();
         const up = await fileService.upload(roomIdx, file);
         onFileUpload(up.fileIdx, up.oriFilename, up.fileSize, up.fileExtension);
       } catch { alert('데모 파일 첨부에 실패했습니다.'); }
@@ -70,11 +70,19 @@ export default function MessageInput({ channelName, isDm = false, showMicToggle 
   useEffect(() => {
     if (!attachOpen) return;
     const handler = (e: MouseEvent) => {
+      // 데모 시연 중에는 바깥(스포트라이트 딤 등) 클릭으로 닫지 않음(진행 막힘 방지)
+      if (useDemoStore.getState().active) return;
       if (!attachWrapRef.current?.contains(e.target as Node)) setAttachOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [attachOpen]);
+
+  // 시연이 끝나면 열려있던 첨부 메뉴를 닫는다(#3 남은 팝업 정리)
+  const demoActive = useDemoStore((s) => s.active);
+  useEffect(() => {
+    if (!demoActive) setAttachOpen(false);
+  }, [demoActive]);
 
   return (
     <div className={styles.wrap}>

@@ -7,6 +7,7 @@ import { useTeamStore } from '@/store/teamStore';
 import { useChatNotifStore } from '@/store/chatNotifStore';
 import { friendService } from '@/services/friend';
 import { teamService } from '@/services/team';
+import { useDemoStore } from '@/store/demoStore';
 import UserProfileModal, { type ProfileTarget } from '@/components/user/UserProfileModal';
 import TeamInfoModal from '@/components/team/TeamInfoModal';
 import type { TeamItem } from '@/types/team';
@@ -62,6 +63,8 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
+      // 데모 시연 중에는 바깥(스포트라이트 딤 등) 클릭으로 닫지 않음(친구 수락 단계 진행 막힘 방지)
+      if (useDemoStore.getState().active) return;
       if (profileTarget || viewingTeam) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -71,12 +74,20 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open, profileTarget, viewingTeam]);
 
+  // 시연이 끝나면(active=false) 시연 중 열려있던 알림 드롭다운을 닫는다(#3 남은 팝업 정리)
+  const demoActive = useDemoStore((s) => s.active);
+  useEffect(() => {
+    if (!demoActive) setOpen(false);
+  }, [demoActive]);
+
   const handleAcceptFriend = async (friendIdx: number) => {
     const req = pendingRequests.find((r) => r.friendIdx === friendIdx);
     try {
       await friendService.acceptRequest(friendIdx);
       removeRequest(friendIdx);
       if (req) addFriend(req);
+      // 데모 중에는 수락 후 알림 드롭다운을 닫아 다음 단계로 넘어가도 떠 있지 않게(#3)
+      if (useDemoStore.getState().active) setOpen(false);
     } catch {
       // 서버 오류 무시
     }

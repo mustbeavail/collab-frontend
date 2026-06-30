@@ -40,16 +40,6 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
     }
   }, [roomIdx]);
 
-  // 시연 모드: 시연이 만든 친구관계(friendIdx 추적됨)의 DM방이 열리면 정리 대상으로 등록.
-  // (이미 친구였던 계정의 기존 DM은 friendIdx가 없으므로 등록되지 않아 보존된다.)
-  useEffect(() => {
-    if (!roomIdx) return;
-    const demo = useDemoStore.getState();
-    if (demo.active && demo.artifacts.friendIdx != null && demo.artifacts.dmRoomIdx == null) {
-      demo.setArtifact({ dmRoomIdx: roomIdx });
-    }
-  }, [roomIdx]);
-
   // 초기 로드
   useEffect(() => {
     if (!roomIdx) return;
@@ -174,9 +164,8 @@ export function useChatRoom(roomIdx: number | null, active: boolean = true) {
   const sendFileMessage = useCallback((fileIdx: number, oriFilename: string, fileSize: number, fileExtension: string) => {
     const content = JSON.stringify({ fileIdx, oriFilename, fileSize, fileExtension });
 
-    // 시연 모드: 파일은 실제 업로드되지만(정리 대상으로 추적), 메시지는 로컬로만 표시(WS 미발행 → 봇 응답 안 함).
+    // 시연 모드: 파일은 실제 업로드되고(서버가 시연 세션에 등록→종료 시 자동 정리), 메시지는 로컬로만 표시(WS 미발행 → 봇 응답 안 함).
     if (useDemoStore.getState().active) {
-      useDemoStore.getState().addFileIdx(fileIdx);
       const me = useAuthStore.getState().user;
       setMessages((prev) => [...prev, {
         msgIdx: -Date.now(), userId: me?.userId ?? 'me', nickname: me?.nickname ?? '나',

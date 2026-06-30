@@ -12,6 +12,7 @@ import styles from './ChatWindow.module.css';
 import type { ChatWindowState } from '@/app/page';
 import { useChatRoom } from '@/hooks/useChatRoom';
 import { useChatNotifStore } from '@/store/chatNotifStore';
+import { useDemoStore } from '@/store/demoStore';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { chatService } from '@/services/chat';
 import { fileService, FileTooLargeError } from '@/services/file';
@@ -425,6 +426,8 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   };
 
   const handleVoiceClick = () => {
+    // 시연 중에는 실제 음성채팅을 시작하지 않음(컨펌 모달도 안 띄움) — 설명만 하는 단계라 동작 무효화
+    if (useDemoStore.getState().active) return;
     if (voiceChatActive) {
       setVoiceChatActive(false);
     } else if (videoChatActive) {
@@ -435,6 +438,8 @@ export default function ChatWindow({ win, containerRef, onClose, onMinimize, onU
   };
 
   const handleVideoClick = () => {
+    // 시연 중에는 실제 화상채팅을 시작하지 않음(컨펌 모달도 안 띄움)
+    if (useDemoStore.getState().active) return;
     if (videoChatActive) {
       setVideoChatActive(false);
     } else if (voiceChatActive) {

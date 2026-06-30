@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { minutesService, MeetingNote } from '@/services/minutes';
+import { useDemoStore } from '@/store/demoStore';
+import { useAuthStore } from '@/store/authStore';
+import { DEMO_MINUTES_TITLE, DEMO_MINUTES_CONTENT } from '@/lib/demoFixtures';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 // Date → "yyyy-MM-ddTHH:mm" (백엔드 LocalDateTime 호환, 로컬 기준)
@@ -127,6 +130,28 @@ export default function MinutesPanel({
   const handleAiGenerate = async () => {
     if (!roomIdx || !aiStartTime || !aiEndTime) return;
     if (aiEndTime.getTime() < aiStartTime.getTime()) { alert('종료 시간은 시작 시간보다 빠를 수 없습니다.'); return; }
+    // 시연 모드: 채팅이 로컬 연출이라 실제 분석 대신 고정 회의록 결과를 보여준다(실제 사용 흐름 동일).
+    if (useDemoStore.getState().active) {
+      setGenerating(true);
+      setTimeout(() => {
+        const d = new Date();
+        const p = (n: number) => String(n).padStart(2, '0');
+        const created = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        const note: MeetingNote = {
+          noteIdx: -Date.now(),
+          title: DEMO_MINUTES_TITLE,
+          content: DEMO_MINUTES_CONTENT,
+          createdAt: created,
+          authorId: currentUserId ?? '',
+          authorNick: useAuthStore.getState().user?.nickname ?? '나',
+        };
+        setNotes((prev) => [note, ...prev]);
+        setSelected(note);
+        setView('detail');
+        setGenerating(false);
+      }, 1300);
+      return;
+    }
     setGenerating(true);
     try {
       const created = await minutesService.generateAiMinutes(roomIdx, {
