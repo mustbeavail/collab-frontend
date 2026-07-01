@@ -88,8 +88,13 @@ export default function NotificationBell() {
       if (req) addFriend(req);
       // 데모 중에는 수락 후 알림 드롭다운을 닫아 다음 단계로 넘어가도 떠 있지 않게(#3)
       if (useDemoStore.getState().active) setOpen(false);
-    } catch {
-      // 서버 오류 무시
+    } catch (err) {
+      // 탈퇴한 회원의 요청 등: 죽은 요청이므로 목록에서 제거하고 사유 안내
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (msg) {
+        removeRequest(friendIdx);
+        alert(msg);
+      }
     }
   };
 
@@ -108,8 +113,13 @@ export default function NotificationBell() {
       const team = await teamService.acceptInvitation(tmIdx);
       removeTeamInvitation(tmIdx);
       addTeam(team);
-    } catch {
-      // 서버 오류 무시
+    } catch (err) {
+      // 이미 삭제된 팀 등: 죽은 초대이므로 목록에서 제거하고 사유 안내
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (msg) {
+        removeTeamInvitation(tmIdx);
+        alert(msg);
+      }
     }
   };
 

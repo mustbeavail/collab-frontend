@@ -546,25 +546,6 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                 {selectedTeams.has(team.teamIdx) && (
                   <div className={styles.teamBody}>
 
-                    {/* 멤버 추가 버튼(qa 항목13) — 리더/매니저만 */}
-                    {(team.myRole === 'LEADER' || team.myRole === 'MANAGER') && (
-                      <button
-                        onClick={() => { setViewingTeam(team); setViewingTeamInvite(true); }}
-                        title="멤버 추가"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 4,
-                          margin: '2px 0 4px', padding: '3px 6px',
-                          fontSize: '0.6875rem', color: 'var(--text-muted)',
-                          background: 'none', border: 'none', cursor: 'pointer',
-                        }}
-                      >
-                        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        멤버 추가
-                      </button>
-                    )}
-
                     {/* 채팅방 카테고리 */}
                     <button className={styles.categoryHeader} onClick={() => toggleCategory(`${team.teamIdx}-channels`)}>
                       <svg className={`${styles.catChevron} ${openCategories.has(`${team.teamIdx}-channels`) ? styles.catChevronOpen : ''}`}
@@ -625,15 +606,21 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                             </div>
                           );
                         })}
-                        {/* 채널 추가(qa 항목21) */}
+                        {/* 채널 추가(qa 항목21) — 멤버 추가와 동일 스타일 */}
                         <button
-                          className={styles.channelItem}
+                          className={styles.memberItem}
                           onClick={() => handleCreateChannel(team.teamIdx)}
                           title="채팅방 추가"
                           style={{ color: 'var(--text-muted)', opacity: 0.8 }}
                         >
-                          <span className={styles.channelHash}>+</span>
-                          <span>채팅방 추가</span>
+                          <div className={styles.memberAvatarWrap} style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                          <div className={styles.memberInfo}>
+                            <span className={styles.memberName}>채팅방 추가</span>
+                          </div>
                         </button>
                       </div>
                     )}
@@ -669,6 +656,24 @@ export default function Sidebar({ openChatIds, shakingChatId, onChatOpen }: Prop
                             </div>
                           </button>
                         ))}
+                        {/* 멤버 추가(qa 항목13) — 리더/매니저만, 멤버 목록 최하단 */}
+                        {(team.myRole === 'LEADER' || team.myRole === 'MANAGER') && (
+                          <button
+                            className={styles.memberItem}
+                            onClick={() => { setViewingTeam(team); setViewingTeamInvite(true); }}
+                            title="멤버 추가"
+                            style={{ color: 'var(--text-muted)', opacity: 0.8 }}
+                          >
+                            <div className={styles.memberAvatarWrap} style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </div>
+                            <div className={styles.memberInfo}>
+                              <span className={styles.memberName}>멤버 추가</span>
+                            </div>
+                          </button>
+                        )}
                       </div>
                     )}
 
