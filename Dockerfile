@@ -17,8 +17,11 @@ FROM node:22-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=build /app/public ./public
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+# 보안: 비-root(node) 유저로 실행 -> RCE 발생해도 컨테이너 내 root 획득 방지.
+# standalone 산출물을 node 소유로 복사(런타임 .next/cache 쓰기 위함).
+COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+USER node
 EXPOSE 3000
 CMD ["node","server.js"]
